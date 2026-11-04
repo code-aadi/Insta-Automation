@@ -32,19 +32,23 @@ export const receiveWebhook = async (req, res) => {
 
   for (const entry of body.entry || []) {
     for (const event of entry.messaging || []) {
-console.log(event)
+
+      if (!event.message) {
+  continue;
+}
       if (event.message?.is_echo) {
         continue;
       }
 
       const senderId = event.sender?.id;
       const userMessage = event.message?.text;
+      const messageId = event.message.mid;
 
-      if (!senderId || !userMessage) {
+      if (!senderId || !userMessage || !messageId) {
         continue;
       }
 
-      handleIncomingMessage(senderId, userMessage)
+      handleIncomingMessage(senderId, userMessage, messageId)
         .catch(error => {
           console.error("Incoming Message Error:", error);
         });
@@ -55,16 +59,3 @@ console.log(event)
 
 
 
-async function getdetails(){
-  console.log("fetching details")
-  try {
-    const data = await fetch(`https://graph.instagram.com/v26.0/1863649487931154\?fields=name,username,profile_pic,follower_count,is_user_follow_business,is_business_follow_user\
-  &access_token=${config.instagramAccessToken}`)
-  const profile = await data.json()
-  console.log(profile)
-  } catch (error) {
-    console.log(error)
-  }
-}
-
-getdetails()

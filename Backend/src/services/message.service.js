@@ -12,7 +12,7 @@ import { getReply } from "./ai.service.js";
 import { businessInfo } from "../config/businessInfo.js";
 import { generateConversationId } from "../helper/conversationId.js";
 import { scheduleReply } from "../helper/scheduleReply.js";
-
+import { checkRateLimit } from "../helper/checkRateLimit.js";
 
 export async function handleIncomingMessage(senderId, incomingMessage, messageId, messageTimeStamp) {
   const conversationId = generateConversationId(senderId, config.igUserId);
@@ -35,8 +35,20 @@ export async function handleIncomingMessage(senderId, incomingMessage, messageId
     console.error("Error in storing message", error.message);
     return;
   }
+const { limited, shouldWarn } = checkRateLimit(senderId);
 
-  // 2. Reply ka kaam queue mein daalo (debounce + lock)
+if (limited) {
+  if (shouldWarn) {
+    try {
+      await sendInstagramMessage(senderId, "Arre arre, thoda dheere bhai! 😄 Ek-ek karke bolo, main kahin nahi ja raha.");
+    } catch (error) {
+      console.error("Rate limit warning error:", error.message);
+    }
+  }
+  return; 
+}
+
+
   scheduleReply(senderId, () => processReply(senderId, conversationId));
 }
 

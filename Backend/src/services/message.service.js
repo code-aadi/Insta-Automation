@@ -166,3 +166,29 @@ async function processReply(senderId, conversationId) {
     }
   }
 }
+
+
+
+
+
+const MEDIA_COOLDOWN_MS = 30 * 1000; 
+const lastMediaReply = new Map();
+
+const MEDIA_REPLIES = {
+  audio: "Voice message sunna abhi seekh raha hu 😅 Text mein likh do, turant jawab dunga!",
+  video: "Video dekhne ki powers abhi nahi mili 😄 Text mein bol do, main yahin hu!",
+  image: "Photo toh mast lag rahi hogi, par mujhe abhi sirf text samajh aata hai 😎 Likh ke batao!",
+  default: "Ye wala format mere sar ke upar se gaya 😅 Text mein likho, main ready hu!",
+};
+
+export async function handleMediaMessage(senderId, mediaType) {
+  // 5 photos ek saath aayein to bhi sirf ek reply
+  const last = lastMediaReply.get(senderId) || 0;
+  if (Date.now() - last < MEDIA_COOLDOWN_MS) return;
+
+  lastMediaReply.set(senderId, Date.now());
+  setTimeout(() => lastMediaReply.delete(senderId), MEDIA_COOLDOWN_MS).unref();
+
+  const reply = MEDIA_REPLIES[mediaType] || MEDIA_REPLIES.default;
+  await sendInstagramMessage(senderId, reply);
+}

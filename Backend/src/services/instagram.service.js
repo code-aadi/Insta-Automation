@@ -3,22 +3,54 @@ import { config } from "../config/env.js";
 const API_URL = `https://graph.instagram.com/${config.apiVersion}/${config.igUserId}/messages`;
 
 async function instagramRequest(body) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.instagramAccessToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
+  let response;
 
-  const data = await response.json();
+  // Step 1: Instagram API request
+  try {
+    response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.instagramAccessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000)
+    });
+  } catch (error) {
+    
+    error.deliveryStatus = "unknown";
 
+    console.error("Instagram Network Error:", error.message);
+    throw error;
+  }
+
+  
+  let data;
+
+  try {
+    data = await response.json();
+  } catch (error) {
+    error.status = response.status;
+    error.deliveryStatus =
+      response.ok || response.status >= 500 ? "unknown" : "failed";
+
+    console.error("Instagram Response Parsing Error:", error.message);
+    throw error;
+  }
+
+  
   if (!response.ok) {
-    console.error("Instagram API Error:", data);
-    throw new Error(
+    const error = new Error(
       data.error?.message || "Instagram API request failed"
     );
+
+    error.status = response.status;
+
+    error.deliveryStatus =
+      response.status >= 500 ? "unknown" : "failed";
+
+    console.error("Instagram API Error:", data);
+    throw error;
   }
 
   return data;
@@ -58,12 +90,11 @@ if(!response.ok) {
     );
   }
   const userProfile = {
-     username : profile.username,
-        name : profile.name,
+     username : profile?.username,
+        name : profile?.name,
         followerCount : profile.follower_count,
         isFollowing : profile.is_user_follow_business,
-        profilePic : profile.profile_pic
+        profilePic : profile?.profile_pic
   }
 return userProfile
 }
-//getInstagramProfile(17841453699373966)

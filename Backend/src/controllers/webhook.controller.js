@@ -43,12 +43,12 @@ export const receiveWebhook = async (req, res) => {
       const senderId = event.sender?.id;
       const userMessage = event.message?.text;
       const messageId = event.message.mid;
-
-      if (!senderId || !userMessage || !messageId) {
+const timeStamp = event.timestamp || new Date()
+      if (!senderId || !userMessage || !messageId || !timeStamp) {
         continue;
       }
 
-      handleIncomingMessage(senderId, userMessage, messageId)
+      handleIncomingMessage(senderId, userMessage, messageId, timeStamp)
         .catch(error => {
           console.error("Incoming Message Error:", error);
         });

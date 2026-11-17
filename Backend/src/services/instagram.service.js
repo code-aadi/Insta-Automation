@@ -1,54 +1,42 @@
 import { config } from "../config/env.js";
 
-const API_URL = `https://graph.instagram.com/${config.apiVersion}/${config.igUserId}/messages`;
-
-async function instagramRequest(body) {
+async function instagramRequest({ botIgId, accessToken }, body) {
+  const apiUrl = `https://graph.instagram.com/${config.apiVersion}/${botIgId}/messages`;
   let response;
 
-  // Step 1: Instagram API request
   try {
-    response = await fetch(API_URL, {
+    response = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${config.instagramAccessToken}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000)
+      signal: AbortSignal.timeout(15000),
     });
   } catch (error) {
-    
     error.deliveryStatus = "unknown";
-
     console.error("Instagram Network Error:", error.message);
     throw error;
   }
 
-  
   let data;
-
   try {
     data = await response.json();
   } catch (error) {
     error.status = response.status;
     error.deliveryStatus =
       response.ok || response.status >= 500 ? "unknown" : "failed";
-
     console.error("Instagram Response Parsing Error:", error.message);
     throw error;
   }
 
-  
   if (!response.ok) {
     const error = new Error(
       data.error?.message || "Instagram API request failed"
     );
-
     error.status = response.status;
-
-    error.deliveryStatus =
-      response.status >= 500 ? "unknown" : "failed";
-
+    error.deliveryStatus = response.status >= 500 ? "unknown" : "failed";
     console.error("Instagram API Error:", data);
     throw error;
   }
@@ -56,45 +44,50 @@ async function instagramRequest(body) {
   return data;
 }
 
-export async function sendInstagramMessage(recipientId, messageText) {
-  return instagramRequest({
+export async function sendInstagramMessage(credentials, recipientId, messageText) {
+  return instagramRequest(credentials, {
     recipient: { id: recipientId },
-    message: { text: messageText }
+    message: { text: messageText },
   });
 }
 
-export async function sendTypingIndicator(recipientId, action) {
-  return instagramRequest({
+export async function sendTypingIndicator(credentials, recipientId, action) {
+  return instagramRequest(credentials, {
     recipient: { id: recipientId },
-    sender_action: action
+    sender_action: action,
   });
 }
 
-
-
-export async function getInstagramProfile(userId) {
+export async function getInstagramProfile({ accessToken }, userId) {
   const url = new URL(
-  `https://graph.instagram.com/${config.apiVersion}/${userId}`
-);
-url.searchParams.set("fields",
-  "name,username,profile_pic,follower_count,is_user_follow_business,is_business_follow_user")
- url.searchParams.set(
-  "access_token",
-  config.instagramAccessToken
-);
-const response = await fetch(url);
-const profile = await response.json();
-if(!response.ok) {
-    throw new Error(
-      profile.error?.message || "Instagram API request failed"
-    );
+    `https://graph.instagram.com/${config.apiVersion}/${userId}`
+  );
+  url.searchParams.set(
+    "fields",
+    "name,username,profile_pic,follower_count,is_user_follow_business,is_business_follow_user"
+  );
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  const profile = await response.json();
+  if (!response.ok) {
+    throw new Error(profile.error?.message || "Instagram API request failed");
   }
-  const userProfile = {
-     username : profile?.username,
-        name : profile?.name,
-        followerCount : profile.follower_count,
-        isFollowing : profile.is_user_follow_business,
-        profilePic : profile?.profile_pic
-  }
-return userProfile
+
+  return {
+    username: profile?.username,
+    name: profile?.name,
+    followerCount: profile.follower_count,
+    isFollowing: profile.is_user_follow_business,
+    profilePic: profile?.profile_pic,
+  };
 }
+
+
+
+

@@ -1,4 +1,3 @@
-
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -8,11 +7,11 @@ export const config = {
 
   verifyToken: process.env.VERIFY_TOKEN,
 
-  instagramAccessToken: process.env.INSTAGRAM_ACCESS_TOKEN,
+  apiVersion: process.env.GRAPH_API_VERSION || "v21.0",
 
-  igUserId: process.env.IG_USER_ID,
+  mongodbUri: process.env.MONGODB_URI,
 
-  apiVersion: process.env.GRAPH_API_VERSION,
+  encryptionKey: process.env.ENCRYPTION_KEY,
 
-  mongodbUri : process.env.MONGODB_URI
+  adminApiKey: process.env.ADMIN_API_KEY,
 };

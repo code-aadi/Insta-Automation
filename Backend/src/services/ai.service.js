@@ -1,34 +1,85 @@
-import "dotenv/config";
 import OpenAI from "openai";
 import { buildSystemPrompt } from "../config/prompt.js";
 
-// 1. Groq Client
-const groqClient = new OpenAI({
-  baseURL: "https://api.groq.com/openai/v1",
-  apiKey: process.env.GROQ_API_KEY,
-  timeout: 15000,
-  maxRetries: 0,
-});
+const DEFAULT_FALLBACK_MESSAGE =
+  "Thanks for your message! Hum jaldi aapko reply karenge.";
 
-// 2. Gemini Client (OpenAI SDK Compatible)
-const geminiClient = new OpenAI({
-  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-  apiKey: process.env.GEMINI_API_KEY,
-  timeout: 15000,
-  maxRetries: 0,
-});
+const KNOWN_PROVIDERS = {
+  groq: {
+    baseURL: "https://api.groq.com/openai/v1",
+    defaultModels: [
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
+      "qwen/qwen3.8-27b",
+    ],
+  },
+  gemini: {
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    defaultModels: ["gemini-3.1-flash-lite", "gemini-3.5-flash"],
+  },
+  openai: {
+    baseURL: "https://api.openai.com/v1",
+    defaultModels: ["gpt-4o-mini"],
+  },
+  openrouter: {
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultModels: ["openai/gpt-4o-mini"],
+  },
+};
 
+const clientCache = new Map();
 
-const MODEL_PIPELINE = [
-  { name: "Groq (gpt-oss-120b)",      client: groqClient,   model: "openai/gpt-oss-120b" },
-  { name: "Groq (gpt-oss-20b)",       client: groqClient,   model: "openai/gpt-oss-20b" },
-  { name: "Groq (qwen3.8-27b)",       client: groqClient,   model: "qwen/qwen3.8-27b" },
-  { name: "Gemini (3.1-flash-lite)",  client: geminiClient, model: "gemini-3.1-flash-lite" },
-  { name: "Gemini (3.5-flash)",       client: geminiClient, model: "gemini-3.5-flash" },
-];
-const FALLBACK_MESSAGE = "Thanks for your message! Hum jaldi aapko reply karenge.";
+function getClient(baseURL, apiKey) {
+  const cacheKey = `${baseURL}:${apiKey}`;
+  if (clientCache.has(cacheKey)) {
+    return clientCache.get(cacheKey);
+  }
 
-const buildMessages = ({ history, userDetails, businessInfo }) => {
+  if (clientCache.size > 200) {
+    clientCache.clear();
+  }
+
+  const client = new OpenAI({
+    baseURL,
+    apiKey,
+    timeout: 15000,
+    maxRetries: 0,
+  });
+
+  clientCache.set(cacheKey, client);
+  return client;
+}
+
+function buildPipeline(aiProviders = []) {
+  const pipeline = [];
+
+  for (const item of aiProviders) {
+    if (item.isActive === false || !item.apiKey) continue;
+
+    const providerKey = item.provider?.toLowerCase();
+    const known = KNOWN_PROVIDERS[providerKey];
+
+    const baseURL = item.baseURL || known?.baseURL;
+    const models =
+      item.models?.length > 0 ? item.models : known?.defaultModels || [];
+
+    if (!baseURL || models.length === 0) continue;
+
+    const client = getClient(baseURL, item.apiKey);
+
+    for (const model of models) {
+      pipeline.push({
+        name: `${providerKey || "custom"} (${model})`,
+        client,
+        model,
+      });
+    }
+  }
+
+  return pipeline;
+}
+
+const buildMessages = ({ history = [], userDetails, businessInfo }) => {
   return [
     { role: "system", content: buildSystemPrompt({ businessInfo, userDetails }) },
     ...history
@@ -40,10 +91,27 @@ const buildMessages = ({ history, userDetails, businessInfo }) => {
   ];
 };
 
-export const getReply = async (data) => {
-  const messages = buildMessages(data);
+export const getReply = async ({
+  history,
+  userDetails,
+  businessInfo,
+  aiProviders = [],
+  fallbackMessage = DEFAULT_FALLBACK_MESSAGE,
+}) => {
+  const pipeline = buildPipeline(aiProviders);
 
-  for (const { name, client, model } of MODEL_PIPELINE) {
+  if (pipeline.length === 0) {
+    console.warn("[AI] No active AI providers/models configured for this account.");
+    return fallbackMessage;
+  }
+
+  const messages = buildMessages({ history, userDetails, businessInfo });
+
+  if (messages.length <= 1) {
+    return fallbackMessage;
+  }
+
+  for (const { name, client, model } of pipeline) {
     try {
       console.log(`[AI] Trying ${name}...`);
 
@@ -69,12 +137,5 @@ export const getReply = async (data) => {
     }
   }
 
-  return FALLBACK_MESSAGE;
+  return fallbackMessage;
 };
-
-
-
-
-
-
-

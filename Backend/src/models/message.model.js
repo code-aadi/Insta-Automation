@@ -2,10 +2,13 @@ import mongoose from "mongoose";
 
 const messageSchema = new mongoose.Schema(
   {
+    botIgId: {
+      type: String,
+      required: true,
+    },
     conversationId: {
       type: String,
       required: true,
-      index: true, // Direct match ke liye
     },
     messageId: {
       type: String,
@@ -32,6 +35,7 @@ const messageSchema = new mongoose.Schema(
     },
     status: {
       type: String,
+      enum: ["received", "pending", "sent", "failed", "unknown"],
       default: "received",
     },
     timestamp: {
@@ -44,7 +48,10 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
-// Ye compound index lagao: conversationId match karega aur instant timestamp sort dega
+
 messageSchema.index({ conversationId: 1, timestamp: -1 });
+
+
+messageSchema.index({ botIgId: 1, timestamp: -1 });
 
 export const Message = mongoose.model("Message", messageSchema);

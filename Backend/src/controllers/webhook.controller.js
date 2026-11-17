@@ -30,34 +30,36 @@ export const receiveWebhook = async (req, res) => {
       if (!event.message) continue;
       if (event.message.is_echo) continue;
 
+      const botIgId = event.recipient?.id || entry.id;
       const senderId = event.sender?.id;
       const messageId = event.message.mid;
       const userMessage = event.message.text;
       const attachments = event.message.attachments;
       const timeStamp = event.timestamp || Date.now();
 
-      if (!senderId || !messageId) continue;
+      if (!botIgId || !senderId || !messageId) continue;
+      if (senderId === botIgId) continue;
 
-      
       if (userMessage) {
-        handleIncomingMessage(senderId, userMessage, messageId, timeStamp).catch(
-          (error) => {
-            console.error("Incoming Message Error:", error);
-          }
-        );
+        handleIncomingMessage(
+          botIgId,
+          senderId,
+          userMessage,
+          messageId,
+          timeStamp
+        ).catch((error) => {
+          console.error("Incoming Message Error:", error);
+        });
         continue;
       }
 
-      
       if (attachments?.length) {
-        handleMediaMessage(senderId, attachments[0].type).catch((error) => {
-          console.error("Media Message Error:", error);
-        });
+        handleMediaMessage(botIgId, senderId, attachments[0].type).catch(
+          (error) => {
+            console.error("Media Message Error:", error);
+          }
+        );
       }
     }
   }
 };
-
-
-
-

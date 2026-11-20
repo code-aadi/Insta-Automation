@@ -24,7 +24,7 @@ export async function handleIncomingMessage(
 ) {
   // Check karo ki client DB mein hai aur uska bot active hai
   const account = await Account.findOne({ botIgId })
-    .select("+accessToken settings.isActive")
+    .select("+accessToken settings.isActive settings.replyDelaySeconds")
     .lean();
 
   if (!account || !account.settings?.isActive) {
@@ -76,7 +76,8 @@ export async function handleIncomingMessage(
     return;
   }
 
-  scheduleReply(key, () => processReply(botIgId, senderId, conversationId));
+const delaySeconds = account.settings?.replyDelaySeconds ?? 3;
+  scheduleReply(key, () => processReply(botIgId, senderId, conversationId), delaySeconds);
 }
 
 function getLatestIncomingText(history = []) {

@@ -127,6 +127,12 @@ const accountSchema = new mongoose.Schema(
         type: String,
         default: "Thanks for your message! Hum jaldi aapko reply karenge.",
       },
+      replyDelaySeconds : {
+        type : Number,
+        default : 3,
+        min : 0,
+        max : 15
+      }
     },
   },
   {

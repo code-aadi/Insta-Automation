@@ -81,9 +81,23 @@ export const updateSettings = async (req, res) => {
       followMessage,
       noMatchReply,
       fallbackMessage,
+      replyDelaySeconds
     } = req.body;
 
     const updates = {};
+    if (replyDelaySeconds !== undefined) {
+  const parsed = Number(replyDelaySeconds);
+  if (
+    replyDelaySeconds === "" ||
+    replyDelaySeconds === null ||
+    typeof replyDelaySeconds === "boolean" ||
+    !Number.isFinite(parsed)
+  ) {
+    return res.status(400).json({ error: "replyDelaySeconds must be a valid number" });
+  }
+  updates["settings.replyDelaySeconds"] = parsed;
+}
+
     if (isActive !== undefined) updates["settings.isActive"] = Boolean(isActive);
     if (botMode !== undefined) updates["settings.botMode"] = botMode;
     if (requireFollow !== undefined) updates["settings.requireFollow"] = Boolean(requireFollow);

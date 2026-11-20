@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import { ArrowRight, RefreshCw, Save } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { useApp } from "../context/AppContext.jsx";
+import RangeSlider from "../components/RangeSlider.jsx";
 
 export default function DashboardPage() {
   const { account, stats, refreshStats, updateSettings } = useApp();
 
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
+const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
   const [isActive, setIsActive] = useState(true);
   const [botMode, setBotMode] = useState("hybrid");
   const [requireFollow, setRequireFollow] = useState(true);
@@ -19,7 +20,9 @@ export default function DashboardPage() {
 
   // Account load/update hone par local form sync karo
   useEffect(() => {
+    console.log(account?.settings)
     if (!account?.settings) return;
+    setReplyDelaySeconds(account.settings.replyDelaySeconds ?? 3)
     setIsActive(account.settings.isActive ?? true);
     setBotMode(account.settings.botMode || "hybrid");
     setRequireFollow(account.settings.requireFollow ?? true);
@@ -63,6 +66,7 @@ export default function DashboardPage() {
         followMessage,
         noMatchReply,
         fallbackMessage,
+        replyDelaySeconds
       });
     } finally {
       setSaving(false);
@@ -198,7 +202,7 @@ export default function DashboardPage() {
                 "Sends every DM straight to your configured AI provider pipeline."}
             </span>
           </div>
-
+  <RangeSlider label="DM reply delay" value={replyDelaySeconds} min={0} max={15} unit="sec" onChange={setReplyDelaySeconds}/>
           <div className="toggle-setting-row">
             <div>
               <div className="field-label">Require Follow Before Replying</div>

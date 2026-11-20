@@ -1,13 +1,15 @@
 
-const DEBOUNCE_MS = 2500;      // aakhri message ke itne ms baad reply
+
 const userStates = new Map();  // diary: senderId → us user ka page
 
-export const scheduleReply = (senderId, task) => {
+export const scheduleReply = (senderId, task, delayMs = 3) => {
   // 1. Is user ka page nikalo, na ho to naya banao
   let state = userStates.get(senderId);
   if (!state) {
-    state = { timer: null, isRunning: false, hasNewMessage: false };
+    state = { timer: null, isRunning: false, hasNewMessage: false, delayMs : delayMs * 1000 };
     userStates.set(senderId, state);
+  }else{
+    state.delayMs = delayMs * 1000
   }
 
   // 2. Kaam chal raha hai? To naya alarm nahi, sirf chitthi chhodo
@@ -18,7 +20,7 @@ export const scheduleReply = (senderId, task) => {
 
   // 3. Purana alarm cancel karo, naya lagao (debounce)
   clearTimeout(state.timer);
-  state.timer = setTimeout(() => runTask(senderId, task), DEBOUNCE_MS);
+  state.timer = setTimeout(() => runTask(senderId, task), state.delayMs);
 };
 
 const runTask = async (senderId, task) => {
@@ -38,7 +40,7 @@ const runTask = async (senderId, task) => {
     if (state.hasNewMessage) {
       // kaam ke dauraan naya message aaya tha: ek aur round
       state.hasNewMessage = false;
-      state.timer = setTimeout(() => runTask(senderId, task), DEBOUNCE_MS);
+      state.timer = setTimeout(() => runTask(senderId, task), state.delayMs);
     } else {
       userStates.delete(senderId); // memory saaf
     }

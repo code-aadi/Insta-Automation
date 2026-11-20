@@ -42,6 +42,16 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    replySource: {
+      type: String,
+      enum: ["rule", "ai", "fallback"],
+    },
+    aiMeta: {
+      model: String,
+      promptTokens: Number,
+      completionTokens: Number,
+      totalTokens: Number,
+    },
   },
   {
     timestamps: true,

@@ -102,13 +102,13 @@ export const getReply = async ({
 
   if (pipeline.length === 0) {
     console.warn("[AI] No active AI providers/models configured for this account.");
-    return fallbackMessage;
+    return { text: fallbackMessage, modelUsed: null, usage: null, isFallback: true };
   }
 
   const messages = buildMessages({ history, userDetails, businessInfo });
 
   if (messages.length <= 1) {
-    return fallbackMessage;
+    return { text: fallbackMessage, modelUsed: null, usage: null, isFallback: true };
   }
 
   for (const { name, client, model } of pipeline) {
@@ -125,10 +125,20 @@ export const getReply = async ({
       const reply = res.choices?.[0]?.message?.content?.trim();
 
       if (reply) {
+        const promptTokens = res.usage?.prompt_tokens || 0;
+        const completionTokens = res.usage?.completion_tokens || 0;
+        const totalTokens = res.usage?.total_tokens ?? promptTokens + completionTokens;
+
         console.log(
-          `[AI] Success from ${name} | tokens: in=${res.usage?.prompt_tokens}, out=${res.usage?.completion_tokens}`
+          `[AI] Success from ${name} | tokens: in=${promptTokens}, out=${completionTokens}`
         );
-        return reply;
+
+        return {
+          text: reply,
+          modelUsed: name,
+          usage: { promptTokens, completionTokens, totalTokens },
+          isFallback: false,
+        };
       }
 
       console.warn(`[AI] ${name} gave empty reply, trying next...`);
@@ -137,5 +147,5 @@ export const getReply = async ({
     }
   }
 
-  return fallbackMessage;
+  return { text: fallbackMessage, modelUsed: null, usage: null, isFallback: true };
 };

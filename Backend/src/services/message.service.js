@@ -93,6 +93,7 @@ function getLatestIncomingText(history = []) {
 
 async function processReply(botIgId, senderId, conversationId) {
   let credentials;
+  let typingOn = false;
 
   try {
     // Client ki config + encrypted accessToken + AI provider keys fetch karo
@@ -106,12 +107,6 @@ async function processReply(botIgId, senderId, conversationId) {
       botIgId,
       accessToken: decrypt(account.accessToken),
     };
-
-    try {
-      await sendTypingIndicator(credentials, senderId, "typing_on");
-    } catch (error) {
-      console.error("Typing ON Error:", error.message);
-    }
 
     // Chat history fetch karo
     let history = [];
@@ -154,6 +149,8 @@ async function processReply(botIgId, senderId, conversationId) {
     const botMode = account.settings?.botMode || "hybrid";
     const latestText = getLatestIncomingText(history);
     let reply = null;
+    let replySource = "rule";
+    let aiMeta = undefined;
 
     if (botMode === "rules" || botMode === "hybrid") {
       reply = matchKeywordRule(latestText, account.keywordRules);
@@ -162,9 +159,18 @@ async function processReply(botIgId, senderId, conversationId) {
     if (!reply) {
       if (botMode === "rules") {
         const noMatchReply = account.settings?.noMatchReply?.trim();
-        if (!noMatchReply) return; // Rules mode mein koi rule match na ho toh silent
+        if (!noMatchReply) return; // Bina typing_on kiye chupchap exit
         reply = noMatchReply;
+        replySource = "fallback";
       } else {
+        // Ab AI reply banne wala hai -> sirf ab typing_on bhejo!
+        try {
+          await sendTypingIndicator(credentials, senderId, "typing_on");
+          typingOn = true;
+        } catch (error) {
+          console.error("Typing ON Error:", error.message);
+        }
+
         const filteredUserDetails = {
           name: userDetails?.name || userDetails?.username || "friend",
           username: userDetails?.username,
@@ -183,18 +189,32 @@ async function processReply(botIgId, senderId, conversationId) {
           .filter(Boolean);
 
         try {
-          reply = await getReply({
+          const aiResult = await getReply({
             userDetails: filteredUserDetails,
             businessInfo: account.businessInfo,
             history,
             aiProviders,
             fallbackMessage: account.settings?.fallbackMessage,
           });
+
+          reply = aiResult.text;
+          if (aiResult.isFallback) {
+            replySource = "fallback";
+          } else {
+            replySource = "ai";
+            aiMeta = {
+              model: aiResult.modelUsed,
+              promptTokens: aiResult.usage?.promptTokens || 0,
+              completionTokens: aiResult.usage?.completionTokens || 0,
+              totalTokens: aiResult.usage?.totalTokens || 0,
+            };
+          }
         } catch (error) {
           console.error("AI reply error:", error);
           reply =
             account.settings?.fallbackMessage ||
             "Abhi ispe thoda kaam chal rha hai. Thodi der baad try karna.";
+          replySource = "fallback";
         }
       }
     }
@@ -211,6 +231,8 @@ async function processReply(botIgId, senderId, conversationId) {
         direction: "outgoing",
         status: "pending",
         messageType: "text",
+        replySource,
+        ...(aiMeta ? { aiMeta } : {}),
         timestamp: new Date(),
       });
     } catch (error) {
@@ -257,7 +279,7 @@ async function processReply(botIgId, senderId, conversationId) {
   } catch (error) {
     console.error("Message Service Error:", error);
   } finally {
-    if (credentials) {
+    if (typingOn && credentials) {
       try {
         await sendTypingIndicator(credentials, senderId, "typing_off");
       } catch (error) {

@@ -1,0 +1,397 @@
+/**
+ * automations.css — Automations Manager & 3-Step Creation Wizard
+ * ---------------------------------------------------------------------------
+ * Styles for search/filter toolbar, automation list items, keyword tokens,
+ * step-by-step wizard modal, media picker grid, and live DM phone preview.
+ */
+
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-box {
+  position: relative;
+  min-width: 240px;
+  flex: 1;
+  max-width: 340px;
+}
+
+.search-box-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  padding-left: 36px;
+}
+
+/* Automation List Grid */
+.automation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.automation-row {
+  padding: 18px 20px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) auto;
+  gap: 20px;
+  align-items: center;
+  transition: border-color var(--duration-fast) var(--ease-ui);
+}
+
+.automation-row:hover {
+  border-color: var(--border-strong);
+}
+
+.automation-row.is-paused {
+  opacity: 0.78;
+}
+
+.automation-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.automation-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.automation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.automation-keywords-line {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.automation-reply-preview {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reply-snippet {
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.reply-flags {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.automation-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-text {
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 48px;
+}
+
+.status-text--active {
+  color: var(--signal-active);
+}
+
+.status-text--paused {
+  color: var(--text-muted);
+}
+
+/* Empty State Panel */
+.empty-state {
+  padding: 56px 24px;
+  text-align: center;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.empty-state-title {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.empty-state-copy {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 420px;
+}
+
+/* Step-by-Step Creation Wizard Modal */
+.wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.wizard-step-tab {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+  background-color: var(--bg-subtle);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wizard-step-tab.is-active {
+  border-color: var(--accent-primary);
+  background-color: var(--accent-primary-soft);
+}
+
+.wizard-step-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-primary);
+}
+
+.wizard-step-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wizard-body-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.9fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.wizard-form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trigger-option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.trigger-option-btn {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color var(--duration-fast) var(--ease-ui),
+    background-color var(--duration-fast) var(--ease-ui);
+}
+
+.trigger-option-btn.is-selected {
+  border-color: var(--accent-primary);
+  background-color: var(--accent-primary-soft);
+}
+
+.trigger-option-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trigger-option-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Media Picker Cards inside Wizard */
+.media-picker-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.media-picker-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.media-picker-item.is-selected {
+  border-color: var(--accent-primary);
+  background-color: var(--accent-primary-soft);
+}
+
+.media-picker-type {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.media-picker-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Keyword Input & Chip Row */
+.keyword-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.keyword-token-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keyword-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.keyword-remove-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+}
+
+.keyword-remove-btn:hover {
+  color: var(--signal-danger);
+}
+
+.toggle-setting-row {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+  background-color: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Live Mobile Preview Panel inside Wizard */
+.wizard-preview-box {
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-canvas);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-hairline);
+  background-color: var(--bg-surface);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.preview-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 280px;
+}
+
+.preview-dm-card {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-dm-card-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.preview-dm-card-btn {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-primary);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .automation-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .wizard-body-grid {
+    grid-template-columns: 1fr;
+  }
+  .trigger-option-grid {
+    grid-template-columns: 1fr;
+  }
+}

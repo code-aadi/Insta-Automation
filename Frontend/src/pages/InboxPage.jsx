@@ -1,19 +1,62 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { useApp } from "../context/AppContext.jsx";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function getInitials(user) {
   const label = user?.name || user?.username || "IG";
   return label.slice(0, 2).toUpperCase();
 }
 
-function formatTime(dateStr) {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleTimeString([], {
+// Us din ka 00:00 timestamp (sirf date compare karne ke liye)
+function startOfDay(value) {
+  const d = new Date(value);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function daysAgo(value) {
+  return Math.round((startOfDay(Date.now()) - startOfDay(value)) / DAY_MS);
+}
+
+function formatClock(value) {
+  return new Date(value).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// "18 Nov" (is saal) ya "18 Nov 2025" (purane saal)
+function formatDate(value) {
+  const d = new Date(value);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
+function formatDayLabel(value) {
+  const diff = daysAgo(value);
+  if (diff === 0) return "Aaj";
+  if (diff === 1) return "Kal";
+  return formatDate(value);
+}
+
+// Chat bubble meta
+function formatMessageTime(value) {
+  if (!value) return "";
+  const clock = formatClock(value);
+  return daysAgo(value) === 0 ? clock : `${formatDayLabel(value)} ${clock}`;
+}
+
+// Lead list ka compact time
+function formatLeadTime(value) {
+  if (!value) return "";
+  return daysAgo(value) === 0 ? formatClock(value) : formatDayLabel(value);
 }
 
 export default function InboxPage() {
@@ -205,7 +248,7 @@ export default function InboxPage() {
                         <span className="thread-name">
                           {user.username ? `@${user.username}` : user.name || user.instagramId}
                         </span>
-                        <span className="thread-time">{formatTime(user.lastMessageAt)}</span>
+                       <span className="thread-time">{formatLeadTime(user.lastMessageAt)}</span>
                       </div>
                       <span className="thread-preview">
                         {user.name || `IG ID: ${user.instagramId}`}
@@ -257,39 +300,49 @@ export default function InboxPage() {
                     No messages recorded yet.
                   </div>
                 ) : (
-                  messages.map((msg) => {
-                    const isIncoming = msg.direction === "incoming";
-                    return (
-                      <div
-                        key={msg._id}
-                        className={`chat-msg ${
-                          isIncoming ? "chat-msg--incoming" : "chat-msg--outgoing"
-                        }`}
-                      >
-                        <div className="chat-msg-bubble">
-                          <div>{msg.text || `[${msg.messageType}]`}</div>
-                        </div>
-                       <span className="chat-msg-meta">
-                          {isIncoming ? (
-                            `User · ${formatTime(msg.timestamp)}`
-                          ) : (
-                            <>
-                              Bot ({msg.status})
-                              {msg.replySource === "rule" && " · ⚡ Keyword Rule"}
-                              {msg.replySource === "fallback" && " · Fallback"}
-                              {msg.replySource === "ai" && msg.aiMeta?.model && (
-                                <>
-                                  {` · 🤖 ${msg.aiMeta.model}`}
-                                  {` · ${msg.aiMeta.totalTokens} tokens (in: ${msg.aiMeta.promptTokens}, out: ${msg.aiMeta.completionTokens})`}
-                                </>
-                              )}
-                              {` · ${formatTime(msg.timestamp)}`}
-                            </>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })
+                 messages.map((msg, idx) => {
+  const isIncoming = msg.direction === "incoming";
+  const prev = messages[idx - 1];
+  const showDaySeparator =
+    !prev || startOfDay(prev.timestamp) !== startOfDay(msg.timestamp);
+
+  return (
+    <Fragment key={msg._id}>
+      {showDaySeparator && (
+        <div className="chat-day-separator">
+          <span>{formatDayLabel(msg.timestamp)}</span>
+        </div>
+      )}
+      <div
+        className={`chat-msg ${
+          isIncoming ? "chat-msg--incoming" : "chat-msg--outgoing"
+        }`}
+      >
+        <div className="chat-msg-bubble">
+          <div>{msg.text || `[${msg.messageType}]`}</div>
+        </div>
+        <span className="chat-msg-meta">
+          {isIncoming ? (
+            `User · ${formatMessageTime(msg.timestamp)}`
+          ) : (
+            <>
+              Bot ({msg.status})
+              {msg.replySource === "rule" && " · ⚡ Keyword Rule"}
+              {msg.replySource === "fallback" && " · Fallback"}
+              {msg.replySource === "ai" && msg.aiMeta?.model && (
+                <>
+                  {` · 🤖 ${msg.aiMeta.model}`}
+                  {` · ${msg.aiMeta.totalTokens} tokens (in: ${msg.aiMeta.promptTokens}, out: ${msg.aiMeta.completionTokens})`}
+                </>
+              )}
+              {` · ${formatMessageTime(msg.timestamp)}`}
+            </>
+          )}
+        </span>
+      </div>
+    </Fragment>
+  );
+})
                 )}
                 <div ref={chatEndRef} />
               </div>

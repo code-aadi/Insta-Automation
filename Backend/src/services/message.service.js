@@ -22,18 +22,17 @@ export async function handleIncomingMessage(
   messageId,
   messageTimeStamp
 ) {
-  // Check karo ki client DB mein hai aur uska bot active hai
+  // 1. Account fetch — bot paused ho ya active, message record karna hai
   const account = await Account.findOne({ botIgId })
     .select("+accessToken settings.isActive settings.replyDelaySeconds")
     .lean();
 
-  if (!account || !account.settings?.isActive) {
-    return;
-  }
+  if (!account) return;
 
   const conversationId = generateConversationId(senderId, botIgId);
+  const messageDate = new Date(messageTimeStamp || Date.now());
 
-  // Incoming message DB mein save karo
+  // 2. Incoming message HAMESHA save
   try {
     await Message.create({
       botIgId,
@@ -45,15 +44,56 @@ export async function handleIncomingMessage(
       text: incomingMessage,
       messageType: "text",
       status: "received",
-      timestamp: new Date(messageTimeStamp),
+      timestamp: messageDate,
     });
   } catch (error) {
-    if (error.code === 11000) return;
+    if (error.code === 11000) return; // Meta duplicate event
     console.error("Error in storing message:", error.message);
     return;
   }
 
-  // Per-client + per-user unique key
+  // 3. Lead ensure karo + pata karo naya hai ya purana
+  let isNewLead = false;
+  try {
+    const existing = await User.findOne({ botIgId, instagramId: senderId })
+      .select("_id")
+      .lean();
+    isNewLead = !existing;
+
+    await User.findOneAndUpdate(
+      { botIgId, instagramId: senderId },
+      {
+        $set: { lastMessageAt: messageDate },
+        $setOnInsert: { firstMessageAt: messageDate },
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+  } catch (error) {
+    console.error("Lead upsert error:", error.message);
+  }
+
+  // 4. Naya lead -> profile turant (bot paused ho tab bhi naam dikhega)
+  //    Purana lead -> extra API call nahi, processReply refresh kar dega
+  if (isNewLead) {
+    try {
+      const credentials = {
+        botIgId,
+        accessToken: decrypt(account.accessToken),
+      };
+      const instaProfile = await getInstagramProfile(credentials, senderId);
+      await User.updateOne(
+        { botIgId, instagramId: senderId },
+        { $set: instaProfile }
+      );
+    } catch (error) {
+      console.error("New lead profile fetch error:", error.message);
+    }
+  }
+
+  // 5. Bot paused -> yahin ruk jao (message + lead + profile save ho chuke)
+  if (!account.settings?.isActive) return;
+
+  // 6. Rate limit
   const key = `${botIgId}_${senderId}`;
   const { limited, shouldWarn } = checkRateLimit(key);
 
@@ -76,8 +116,13 @@ export async function handleIncomingMessage(
     return;
   }
 
-const delaySeconds = account.settings?.replyDelaySeconds ?? 3;
-  scheduleReply(key, () => processReply(botIgId, senderId, conversationId), delaySeconds);
+  // 7. Debounce + reply queue
+  const delaySeconds = account.settings?.replyDelaySeconds ?? 3;
+  scheduleReply(
+    key,
+    () => processReply(botIgId, senderId, conversationId),
+    delaySeconds
+  );
 }
 
 function getLatestIncomingText(history = []) {
@@ -125,7 +170,7 @@ async function processReply(botIgId, senderId, conversationId) {
       userDetails = await User.findOneAndUpdate(
         { botIgId, instagramId: senderId },
         {
-          $set: { ...instaProfile, lastMessageAt: new Date() },
+          $set: { ...instaProfile },
           $setOnInsert: {
             firstMessageAt: new Date(),
             botIgId,

@@ -15,8 +15,13 @@ app.use(
   })
 );
 
-// JSON request body ko read karne ke liye
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // Health check
 app.get("/health", (req, res) => {

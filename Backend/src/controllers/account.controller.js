@@ -355,18 +355,23 @@ export const getLeads = async (req, res) => {
   }
 };
 
-// 12. Kisi ek Lead ke saath chat history
+
 export const getConversationMessages = async (req, res) => {
   try {
     const { instagramId } = req.params;
     const conversationId = generateConversationId(instagramId, req.botIgId);
 
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+
+   
     const messages = await Message.find({ conversationId })
-      .sort({ timestamp: 1 })
-      .limit(100)
+      .sort({ timestamp: -1 })
+      .limit(limit)
       .lean();
 
-    return res.json({ messages });
+    const hasMore = messages.length === limit;
+
+    return res.json({ messages: messages.reverse(), hasMore });
   } catch (error) {
     console.error("getConversationMessages Error:", error.message);
     return res.status(500).json({ error: "Failed to fetch messages" });

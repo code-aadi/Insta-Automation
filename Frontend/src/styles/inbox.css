@@ -219,6 +219,30 @@
   color: var(--text-muted);
 }
 
+/* Different dates ke messages ke beech day separator */
+.chat-day-separator {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.chat-day-separator::before,
+.chat-day-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background-color: var(--border-hairline);
+}
+
 .chat-card-attach {
   margin-top: 8px;
   padding: 10px 12px;

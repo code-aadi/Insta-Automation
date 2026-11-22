@@ -19,11 +19,8 @@ export const verifyWebhook = async (req, res) => {
 export const receiveWebhook = async (req, res) => {
   res.status(200).send("EVENT_RECEIVED");
 
-  const body = req.body;
-
-  if (body.object !== "instagram") {
-    return;
-  }
+   const body = req.body;
+  if (!body || body.object !== "instagram") return;
 
   for (const entry of body.entry || []) {
     for (const event of entry.messaging || []) {
@@ -53,12 +50,17 @@ export const receiveWebhook = async (req, res) => {
         continue;
       }
 
-      if (attachments?.length) {
-        handleMediaMessage(botIgId, senderId, attachments[0].type).catch(
-          (error) => {
-            console.error("Media Message Error:", error);
-          }
-        );
+           if (attachments?.length) {
+             console.log("[Webhook] Attachment type:", attachments[0].type)
+        handleMediaMessage(
+          botIgId,
+          senderId,
+          attachments[0].type,
+          messageId,
+          timeStamp
+        ).catch((error) => {
+          console.error("Media Message Error:", error);
+        });
       }
     }
   }

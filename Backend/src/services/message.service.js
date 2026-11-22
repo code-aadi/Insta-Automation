@@ -22,7 +22,6 @@ export async function handleIncomingMessage(
   messageId,
   messageTimeStamp
 ) {
-  // 1. Account fetch — bot paused ho ya active, message record karna hai
   const account = await Account.findOne({ botIgId })
     .select("+accessToken settings.isActive settings.replyDelaySeconds")
     .lean();
@@ -32,7 +31,7 @@ export async function handleIncomingMessage(
   const conversationId = generateConversationId(senderId, botIgId);
   const messageDate = new Date(messageTimeStamp || Date.now());
 
-  // 2. Incoming message HAMESHA save
+  // 1. Incoming message HAMESHA save (bot paused ho tab bhi)
   try {
     await Message.create({
       botIgId,
@@ -52,71 +51,36 @@ export async function handleIncomingMessage(
     return;
   }
 
-  // 3. Lead ensure karo + pata karo naya hai ya purana
-  let isNewLead = false;
+  let accessToken;
   try {
-    const existing = await User.findOne({ botIgId, instagramId: senderId })
-      .select("_id")
-      .lean();
-    isNewLead = !existing;
-
-    await User.findOneAndUpdate(
-      { botIgId, instagramId: senderId },
-      {
-        $set: { lastMessageAt: messageDate },
-        $setOnInsert: { firstMessageAt: messageDate },
-      },
-      { upsert: true, new: true, runValidators: true }
-    );
+    accessToken = decrypt(account.accessToken);
   } catch (error) {
-    console.error("Lead upsert error:", error.message);
+    console.error("Token decrypt error:", error.message);
   }
 
-  // 4. Naya lead -> profile turant (bot paused ho tab bhi naam dikhega)
-  //    Purana lead -> extra API call nahi, processReply refresh kar dega
-  if (isNewLead) {
-    try {
-      const credentials = {
-        botIgId,
-        accessToken: decrypt(account.accessToken),
-      };
-      const instaProfile = await getInstagramProfile(credentials, senderId);
-      await User.updateOne(
-        { botIgId, instagramId: senderId },
-        { $set: instaProfile }
-      );
-    } catch (error) {
-      console.error("New lead profile fetch error:", error.message);
-    }
-  }
+  // 2. Lead ensure (naya ho toh profile bhi)
+  await ensureLead(botIgId, senderId, messageDate, accessToken);
 
-  // 5. Bot paused -> yahin ruk jao (message + lead + profile save ho chuke)
+  // 3. Bot paused -> record ho gaya, ab reply nahi
   if (!account.settings?.isActive) return;
 
-  // 6. Rate limit
+  // 4. Rate limit
   const key = `${botIgId}_${senderId}`;
   const { limited, shouldWarn } = checkRateLimit(key);
 
   if (limited) {
     if (shouldWarn) {
-      try {
-        const credentials = {
-          botIgId,
-          accessToken: decrypt(account.accessToken),
-        };
-        await sendInstagramMessage(
-          credentials,
-          senderId,
-          "Arre arre, thoda dheere bhai! 😄 Ek-ek karke bolo, main kahin nahi ja raha."
-        );
-      } catch (error) {
-        console.error("Rate limit warning error:", error.message);
-      }
+      await sendSystemMessage(
+        { botIgId, accessToken },
+        senderId,
+        conversationId,
+        "Arre arre, thoda dheere bhai! 😄 Ek-ek karke bolo, main kahin nahi ja raha."
+      );
     }
     return;
   }
 
-  // 7. Debounce + reply queue
+  // 5. Debounce + reply queue
   const delaySeconds = account.settings?.replyDelaySeconds ?? 3;
   scheduleReply(
     key,
@@ -135,6 +99,170 @@ function getLatestIncomingText(history = []) {
     }
   }
   return texts.join(" ");
+}
+/**
+ * Lead ensure karta hai. Naya lead ho toh profile bhi fetch kar leta hai,
+ * taaki bot paused hone par bhi inbox mein naam/username dikhe.
+ */
+async function ensureLead(botIgId, senderId, messageDate, accessToken) {
+  let isNewLead = false;
+
+  try {
+    const existing = await User.findOne({ botIgId, instagramId: senderId })
+      .select("_id")
+      .lean();
+    isNewLead = !existing;
+
+    await User.findOneAndUpdate(
+      { botIgId, instagramId: senderId },
+      {
+        $set: { lastMessageAt: messageDate },
+        $setOnInsert: { firstMessageAt: messageDate },
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+  } catch (error) {
+    console.error("Lead upsert error:", error.message);
+    return;
+  }
+
+  if (!isNewLead) return;
+
+  try {
+    const instaProfile = await getInstagramProfile(
+      { botIgId, accessToken },
+      senderId
+    );
+    await User.updateOne(
+      { botIgId, instagramId: senderId },
+      { $set: instaProfile }
+    );
+  } catch (error) {
+    console.error("New lead profile fetch error:", error.message);
+  }
+}
+
+/**
+ * Bot ka apna system message (rate-limit warning, media reply).
+ * Instagram par bhejta hai AUR transcript mein save karta hai.
+ */
+async function sendSystemMessage(credentials, senderId, conversationId, text) {
+  const { botIgId } = credentials;
+
+  let doc;
+  try {
+    doc = await Message.create({
+      botIgId,
+      conversationId,
+      senderId: botIgId,
+      recipientId: senderId,
+      text,
+      direction: "outgoing",
+      messageType: "text",
+      status: "pending",
+      replySource: "system",
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error("System message store error:", error.message);
+    return false;
+  }
+
+  let sentData;
+  try {
+    sentData = await sendInstagramMessage(credentials, senderId, text);
+  } catch (error) {
+    await retryDatabaseUpdate(() =>
+      Message.findByIdAndUpdate(doc._id, {
+        $set: { status: error.deliveryStatus || "unknown" },
+      })
+    );
+    console.error("System message send error:", error.message);
+    return false;
+  }
+
+  await retryDatabaseUpdate(() =>
+    Message.findByIdAndUpdate(doc._id, {
+      $set: {
+        status: "sent",
+        ...(sentData.message_id ? { messageId: sentData.message_id } : {}),
+      },
+    })
+  );
+
+  return true;
+}
+
+/**
+ * Profile fetch + lead update. API fail ho toh DB ka cached data return karta hai.
+ */
+async function refreshLeadProfile(botIgId, senderId, accessToken) {
+  try {
+    const instaProfile = await getInstagramProfile(
+      { botIgId, accessToken },
+      senderId
+    );
+    return await User.findOneAndUpdate(
+      { botIgId, instagramId: senderId },
+      { $set: { ...instaProfile } },
+      { upsert: true, new: true, runValidators: true }
+    );
+  } catch (error) {
+    console.error("Profile error:", error.message);
+    return await User.findOne({ botIgId, instagramId: senderId }).lean();
+  }
+}
+
+/**
+ * FOLLOW GATE — shared by processReply aur handleMediaMessage.
+ * return true  = gate band, aage koi reply NAHI bhejna
+ * return false = gate pass, normal reply bhejo
+ */
+async function checkFollowGate({
+  account,
+  credentials,
+  senderId,
+  conversationId,
+  userDetails,
+}) {
+  if (!account.settings?.requireFollow) return false;
+  if (!userDetails) return false; // koi data nahi -> reply allow
+  if (userDetails.isFollowing) return false; // follower -> allow
+
+  const { botIgId } = credentials;
+
+  const cooldownHours = account.settings?.followReminderCooldownHours ?? 24;
+  const cooldownMs = cooldownHours * 60 * 60 * 1000;
+  const lastSent = userDetails.lastFollowReminderAt
+    ? new Date(userDetails.lastFollowReminderAt).getTime()
+    : 0;
+
+  // Cooldown chal raha hai -> chup raho, par gate band hi rahega
+  if (Date.now() - lastSent < cooldownMs) return true;
+
+  const followMsg =
+    account.settings.followMessage || "Please follow first then we talk! 😊";
+
+  const sent = await sendSystemMessage(
+    credentials,
+    senderId,
+    conversationId,
+    followMsg
+  );
+
+  // Cooldown timer sirf successful send par start
+  if (sent) {
+    try {
+      await User.updateOne(
+        { botIgId, instagramId: senderId },
+        { $set: { lastFollowReminderAt: new Date() } }
+      );
+    } catch (error) {
+      console.error("Follow cooldown update error:", error.message);
+    }
+  }
+
+  return true; // send fail ho toh bhi gate band (fail-open fix)
 }
 
 async function processReply(botIgId, senderId, conversationId) {
@@ -162,92 +290,21 @@ async function processReply(botIgId, senderId, conversationId) {
       console.error("Error in getting conversation history:", error.message);
     }
 
-    // ---------- 3. User profile fetch (gate ab yahan NAHI hai) ----------
-    let userDetails;
-    try {
-      const instaProfile = await getInstagramProfile(credentials, senderId);
-      userDetails = await User.findOneAndUpdate(
-        { botIgId, instagramId: senderId },
-        { $set: { ...instaProfile } },
-        { upsert: true, new: true, runValidators: true }
-      );
-    } catch (error) {
-      console.error("Profile error:", error.message);
-      // API fail -> DB ka cached follow status use karenge
-      userDetails = await User.findOne({ botIgId, instagramId: senderId }).lean();
-    }
+       // ---------- 3. User profile + FOLLOW GATE ----------
+    const userDetails = await refreshLeadProfile(
+      botIgId,
+      senderId,
+      credentials.accessToken
+    );
 
-    // ---------- 4. FOLLOW GATE (cooldown ke saath) ----------
-    if (
-      account.settings?.requireFollow &&
-      userDetails &&
-      !userDetails.isFollowing
-    ) {
-      const cooldownHours = account.settings?.followReminderCooldownHours ?? 24;
-      const cooldownMs = cooldownHours * 60 * 60 * 1000;
-      const lastSent = userDetails.lastFollowReminderAt
-        ? new Date(userDetails.lastFollowReminderAt).getTime()
-        : 0;
-
-      // Cooldown chal raha hai -> chupchap exit, koi message nahi
-      if (Date.now() - lastSent < cooldownMs) return;
-
-      const followMsg =
-        account.settings.followMessage ||
-        "Please follow first then we talk! 😊";
-
-      // Reminder ko transcript mein save karo (pehle pending)
-      let reminderDoc;
-      try {
-        reminderDoc = await Message.create({
-          botIgId,
-          conversationId,
-          senderId: botIgId,
-          recipientId: senderId,
-          text: followMsg,
-          direction: "outgoing",
-          messageType: "text",
-          status: "pending",
-          replySource: "system",
-          timestamp: new Date(),
-        });
-      } catch (error) {
-        console.error("Follow reminder store error:", error.message);
-        return;
-      }
-
-      // Instagram par bhejo
-      let sentData;
-      try {
-        sentData = await sendInstagramMessage(credentials, senderId, followMsg);
-      } catch (error) {
-        await retryDatabaseUpdate(() =>
-          Message.findByIdAndUpdate(reminderDoc._id, {
-            $set: { status: error.deliveryStatus || "unknown" },
-          })
-        );
-        console.error("Follow reminder send error:", error.message);
-        return; // cooldown set NAHI hua -> agle message par dobara try
-      }
-
-      // Bhej diya -> status sent + messageId
-      await retryDatabaseUpdate(() =>
-        Message.findByIdAndUpdate(reminderDoc._id, {
-          $set: {
-            status: "sent",
-            ...(sentData.message_id ? { messageId: sentData.message_id } : {}),
-          },
-        })
-      );
-
-      // Cooldown timer start (sirf successful send par)
-      await User.updateOne(
-        { botIgId, instagramId: senderId },
-        { $set: { lastFollowReminderAt: new Date() } }
-      );
-
-      return; // gate band -> normal reply NAHI jayega
-    }
+    const blocked = await checkFollowGate({
+      account,
+      credentials,
+      senderId,
+      conversationId,
+      userDetails,
+    });
+    if (blocked) return;
 
     // ---------- 5. Reply decide (Rules / AI / Hybrid) ----------
     const botMode = account.settings?.botMode || "hybrid";
@@ -403,28 +460,91 @@ const MEDIA_REPLIES = {
   audio: "Voice message sunna abhi seekh raha hu 😅 Text mein likh do, turant jawab dunga!",
   video: "Video dekhne ki powers abhi nahi mili 😄 Text mein bol do, main yahin hu!",
   image: "Photo toh mast lag rahi hogi, par mujhe abhi sirf text samajh aata hai 😎 Likh ke batao!",
+  ig_reel: "Reel dekh nahi sakta abhi 😅 Batao kya chahiye, text mein likh do!",
+  reel: "Reel dekh nahi sakta abhi 😅 Batao kya chahiye, text mein likh do!",
+  share: "Post share kiya hai na? Main dekh nahi sakta 😄 Text mein bata do kya chahiye!",
+  story_mention: "Story mein mention ke liye thanks yaar! 🙌 Kuch chahiye toh text mein likh do.",
+  file: "File kholna abhi nahi aata mujhe 😅 Text mein likh do, main ready hu!",
   default: "Ye wala format mere sar ke upar se gaya 😅 Text mein likho, main ready hu!",
 };
 
-export async function handleMediaMessage(botIgId, senderId, mediaType) {
+export async function handleMediaMessage(
+  botIgId,
+  senderId,
+  mediaType,
+  messageId,
+  messageTimeStamp
+) {
+  const account = await Account.findOne({ botIgId })
+    .select("+accessToken settings")
+    .lean();
+
+  if (!account) return;
+
+  const conversationId = generateConversationId(senderId, botIgId);
+  const messageDate = new Date(messageTimeStamp || Date.now());
+  const type = mediaType || "default";
+
+  // 1. Incoming media HAMESHA save (messageId se dedupe)
+  try {
+    await Message.create({
+      botIgId,
+      conversationId,
+      senderId,
+      recipientId: botIgId,
+      messageId,
+      direction: "incoming",
+      text: "",
+      messageType: type,
+      status: "received",
+      timestamp: messageDate,
+    });
+  } catch (error) {
+    if (error.code === 11000) return;
+    console.error("Error storing media message:", error.message);
+    return;
+  }
+
+  let accessToken;
+  try {
+    accessToken = decrypt(account.accessToken);
+  } catch (error) {
+    console.error("Token decrypt error:", error.message);
+  }
+
+  const credentials = { botIgId, accessToken };
+
+  // 2. Lead ensure — photo bhejne wala bhi inbox mein aayega
+  await ensureLead(botIgId, senderId, messageDate, accessToken);
+
+  // 3. Bot paused -> record ho gaya, reply nahi
+  if (!account.settings?.isActive) return;
+
+  // 4. Media reply cooldown (30 sec, per user)
   const key = `${botIgId}_${senderId}`;
   const last = lastMediaReply.get(key) || 0;
   if (Date.now() - last < MEDIA_COOLDOWN_MS) return;
 
-  const account = await Account.findOne({ botIgId })
-    .select("+accessToken settings.isActive")
-    .lean();
-
-  if (!account || !account.settings?.isActive) return;
-
   lastMediaReply.set(key, Date.now());
   setTimeout(() => lastMediaReply.delete(key), MEDIA_COOLDOWN_MS).unref();
 
-  const credentials = {
-    botIgId,
-    accessToken: decrypt(account.accessToken),
-  };
+  // 5. FOLLOW GATE — ab media par bhi lagega
+  let userDetails = await User.findOne({ botIgId, instagramId: senderId }).lean();
+  if (account.settings?.requireFollow) {
+    // Fresh status lo, taaki abhi-abhi follow karne wala galat block na ho
+    userDetails = await refreshLeadProfile(botIgId, senderId, accessToken);
+  }
 
-  const reply = MEDIA_REPLIES[mediaType] || MEDIA_REPLIES.default;
-  await sendInstagramMessage(credentials, senderId, reply);
+  const blocked = await checkFollowGate({
+    account,
+    credentials,
+    senderId,
+    conversationId,
+    userDetails,
+  });
+  if (blocked) return;
+
+  // 6. Media reply bhejo + transcript mein save
+  const reply = MEDIA_REPLIES[type] || MEDIA_REPLIES.default;
+  await sendSystemMessage(credentials, senderId, conversationId, reply);
 }

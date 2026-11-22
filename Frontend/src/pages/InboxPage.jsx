@@ -58,7 +58,16 @@ function formatLeadTime(value) {
   if (!value) return "";
   return daysAgo(value) === 0 ? formatClock(value) : formatDayLabel(value);
 }
-
+const MEDIA_LABELS = {
+  image: "📷 Photo",
+  video: "🎬 Video",
+  audio: "🎤 Voice message",
+  file: "📎 File",
+  share: "🔗 Shared post",
+  ig_reel: "🎞️ Reel",
+    reel: "🎞️ Reel",
+  story_mention: "📌 Story mention",
+};
 export default function InboxPage() {
   const { fetchLeads, fetchLeadMessages, showToast } = useApp();
 
@@ -159,8 +168,7 @@ export default function InboxPage() {
     });
   }, [leads, followTab, searchTerm]);
 
-  const activeLead =
-    leads.find((u) => u.instagramId === selectedId) || filteredLeads[0] || null;
+  const activeLead = leads.find((u) => u.instagramId === selectedId) || null;
 
   return (
     <DashboardLayout title="Live Inbox">
@@ -313,13 +321,13 @@ export default function InboxPage() {
           <span>{formatDayLabel(msg.timestamp)}</span>
         </div>
       )}
-      <div
+            <div
         className={`chat-msg ${
           isIncoming ? "chat-msg--incoming" : "chat-msg--outgoing"
         }`}
       >
         <div className="chat-msg-bubble">
-          <div>{msg.text || `[${msg.messageType}]`}</div>
+          <div>{msg.text || MEDIA_LABELS[msg.messageType] || `[${msg.messageType}]`}</div>
         </div>
         <span className="chat-msg-meta">
           {isIncoming ? (
@@ -329,6 +337,7 @@ export default function InboxPage() {
               Bot ({msg.status})
               {msg.replySource === "rule" && " · ⚡ Keyword Rule"}
               {msg.replySource === "fallback" && " · Fallback"}
+              {msg.replySource === "system" && " · ⚙️ System"}
               {msg.replySource === "ai" && msg.aiMeta?.model && (
                 <>
                   {` · 🤖 ${msg.aiMeta.model}`}

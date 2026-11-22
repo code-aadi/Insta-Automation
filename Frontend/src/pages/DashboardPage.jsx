@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, RefreshCw, Save } from "lucide-react";
+import { ArrowRight, KeyRound, RefreshCw, Save } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import RangeSlider from "../components/RangeSlider.jsx";
 
 export default function DashboardPage() {
-  const { account, stats, refreshStats, updateSettings } = useApp();
+  const { account, stats, refreshStats, updateSettings, refreshInstagramToken } = useApp();
 
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,10 +18,21 @@ const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
   const [followMessage, setFollowMessage] = useState("");
   const [noMatchReply, setNoMatchReply] = useState("");
   const [fallbackMessage, setFallbackMessage] = useState("");
+  const [refreshingToken, setRefreshingToken] = useState(false);
+
+const handleRefreshToken = async () => {
+  setRefreshingToken(true);
+  try {
+    await refreshInstagramToken();
+  } catch {
+    /* toast already dikha diya */
+  } finally {
+    setRefreshingToken(false);
+  }
+};
 
   // Account load/update hone par local form sync karo
   useEffect(() => {
-    console.log(account?.settings)
     if (!account?.settings) return;
     setReplyDelaySeconds(account.settings.replyDelaySeconds ?? 3)
     setIsActive(account.settings.isActive ?? true);
@@ -86,14 +97,40 @@ const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
       <div className="page-head">
         <div>
           <h1 className="page-title">Automation Overview</h1>
-          <p className="page-subtitle">
-            Connected to @{account?.username || "instagram"} · Bot ID{" "}
-            <span className="tabular-num">{account?.botIgId}</span>
-            {daysLeft !== null ? ` · Token valid ${daysLeft}d` : ""}
-          </p>
+         <p className="page-subtitle">
+  Connected to @{account?.username || "instagram"} · Bot ID{" "}
+  <span className="tabular-num">{account?.botIgId}</span>
+  {daysLeft !== null && (
+    <>
+      {" · "}
+      <span
+        style={{
+          color:
+            daysLeft <= 7
+              ? "var(--signal-danger)"
+              : daysLeft <= 15
+                ? "var(--signal-warning)"
+                : undefined,
+          fontWeight: daysLeft <= 15 ? 600 : undefined,
+        }}
+      >
+        Token valid {daysLeft}d
+      </span>
+    </>
+  )}
+</p>
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
+          <button
+  type="button"
+  className="btn btn-secondary btn-sm"
+  onClick={handleRefreshToken}
+  disabled={refreshingToken}
+>
+  <KeyRound size={14} />
+  <span>{refreshingToken ? "Refreshing..." : "Refresh Token"}</span>
+</button>
           <button
             type="button"
             className="btn btn-secondary btn-sm"

@@ -149,7 +149,20 @@ export function AppProvider({ children }) {
       throw error;
     }
   };
-
+// Instagram token refresh (naya 60-din ka token)
+const refreshInstagramToken = async () => {
+  try {
+    const data = await apiFetch("/api/account/refresh-token", {
+      method: "POST",
+    });
+    setAccount(data.account);
+    showToast("Instagram token refreshed — 60 more days!", "success");
+    return data.account;
+  } catch (error) {
+    showToast(error.message, "error");
+    throw error;
+  }
+};
   // Keyword Rules CRUD
   const addKeywordRule = async (payload) => {
     try {
@@ -276,6 +289,7 @@ export function AppProvider({ children }) {
         toasts,
         showToast,
         dismissToast,
+        refreshInstagramToken
       }}
     >
       {children}

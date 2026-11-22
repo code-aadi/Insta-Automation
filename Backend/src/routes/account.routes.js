@@ -13,6 +13,7 @@ import {
   getDashboardStats,
   getLeads,
   getConversationMessages,
+  refreshToken,
 } from "../controllers/account.controller.js";
 
 const router = express.Router();
@@ -39,5 +40,6 @@ router.delete("/ai-providers/:providerId", deleteAiProvider);
 router.get("/stats", getDashboardStats);
 router.get("/leads", getLeads);
 router.get("/leads/:instagramId/messages", getConversationMessages);
+router.post("/refresh-token", refreshToken);
 
 export default router;

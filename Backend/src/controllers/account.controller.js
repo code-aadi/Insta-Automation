@@ -3,7 +3,7 @@ import { User } from "../models/user.model.js";
 import { Message } from "../models/message.model.js";
 import { encrypt } from "../helper/crypto.js";
 import { generateConversationId } from "../helper/conversationId.js";
-
+import { refreshAccountToken } from "../services/auth.service.js";
 function sanitizeAccount(account) {
   if (!account) return null;
   const obj = typeof account.toObject === "function" ? account.toObject() : { ...account };
@@ -392,5 +392,21 @@ export const getConversationMessages = async (req, res) => {
   } catch (error) {
     console.error("getConversationMessages Error:", error.message);
     return res.status(500).json({ error: "Failed to fetch messages" });
+  }
+};
+
+// 13. Instagram long-lived token manually refresh karo
+export const refreshToken = async (req, res) => {
+  try {
+    const { tokenExpiresAt } = await refreshAccountToken(req.botIgId);
+
+    const account = await Account.findOne({ botIgId: req.botIgId })
+      .select("+aiProviders.apiKey")
+      .lean();
+
+    return res.json({ account: sanitizeAccount(account), tokenExpiresAt });
+  } catch (error) {
+    console.error("refreshToken Error:", error.message);
+    return res.status(400).json({ error: error.message });
   }
 };

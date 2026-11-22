@@ -2,7 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { config } from "../config/env.js";
 import { Account } from "../models/account.model.js";
-import { encrypt } from "../helper/crypto.js";
+import { encrypt, decrypt } from "../helper/crypto.js";
 
 function createOAuthState() {
   return jwt.sign(
@@ -179,4 +179,59 @@ export async function handleInstagramCallback(code) {
     botIgId: profile.botIgId,
     username: profile.username,
   };
+}
+
+
+async function refreshLongLivedToken(currentToken) {
+  const url = new URL("https://graph.instagram.com/refresh_access_token");
+  url.searchParams.set("grant_type", "ig_refresh_token");
+  url.searchParams.set("access_token", currentToken);
+
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(15000),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data?.access_token) {
+    throw new Error(data?.error?.message || "Token refresh failed");
+  }
+
+  return data; 
+}
+
+
+export async function refreshAccountToken(botIgId) {
+  const account = await Account.findOne({ botIgId })
+    .select("+accessToken tokenExpiresAt")
+    .lean();
+
+  if (!account) throw new Error("Account not found");
+  if (!account.accessToken) throw new Error("No Instagram token stored");
+
+  // Meta ka rule: token kam se kam 24 ghante purana hona chahiye
+  const TOKEN_LIFETIME_MS = 60 * 24 * 60 * 60 * 1000;
+  if (account.tokenExpiresAt) {
+    const ageMs =
+      TOKEN_LIFETIME_MS -
+      (new Date(account.tokenExpiresAt).getTime() - Date.now());
+    if (ageMs < 24 * 60 * 60 * 1000) {
+      throw new Error(
+        "Token abhi naya hai. Instagram 24 ghante purane token hi refresh karta hai."
+      );
+    }
+  }
+
+  const currentToken = decrypt(account.accessToken);
+  const data = await refreshLongLivedToken(currentToken);
+
+  const expiresInSec = Number(data.expires_in) || 60 * 24 * 60 * 60;
+  const tokenExpiresAt = new Date(Date.now() + expiresInSec * 1000);
+
+  await Account.updateOne(
+    { botIgId },
+    { $set: { accessToken: encrypt(data.access_token), tokenExpiresAt } }
+  );
+
+  return { tokenExpiresAt };
 }

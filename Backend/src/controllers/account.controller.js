@@ -81,7 +81,8 @@ export const updateSettings = async (req, res) => {
       followMessage,
       noMatchReply,
       fallbackMessage,
-      replyDelaySeconds
+      replyDelaySeconds,
+      followReminderCooldownHours
     } = req.body;
 
     const updates = {};
@@ -97,6 +98,22 @@ export const updateSettings = async (req, res) => {
   }
   updates["settings.replyDelaySeconds"] = parsed;
 }
+
+if (followReminderCooldownHours !== undefined) {
+  const parsed = Number(followReminderCooldownHours);
+  if (
+    followReminderCooldownHours === "" ||
+    followReminderCooldownHours === null ||
+    typeof followReminderCooldownHours === "boolean" ||
+    !Number.isFinite(parsed)
+  ) {
+    return res
+      .status(400)
+      .json({ error: "followReminderCooldownHours must be a valid number" });
+  }
+  updates["settings.followReminderCooldownHours"] = parsed;
+}
+
 
     if (isActive !== undefined) updates["settings.isActive"] = Boolean(isActive);
     if (botMode !== undefined) updates["settings.botMode"] = botMode;
@@ -377,4 +394,3 @@ export const getConversationMessages = async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch messages" });
   }
 };
-

@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema(
     },
     firstMessageAt: Date,
     lastMessageAt: Date,
+  lastFollowReminderAt: Date,
   },
   {
     timestamps: true,

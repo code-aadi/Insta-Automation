@@ -142,7 +142,7 @@ async function processReply(botIgId, senderId, conversationId) {
   let typingOn = false;
 
   try {
-    // Client ki config + encrypted accessToken + AI provider keys fetch karo
+    // ---------- 1. Client config fetch ----------
     const account = await Account.findOne({ botIgId })
       .select("+accessToken +aiProviders.apiKey")
       .lean();
@@ -154,7 +154,7 @@ async function processReply(botIgId, senderId, conversationId) {
       accessToken: decrypt(account.accessToken),
     };
 
-    // Chat history fetch karo
+    // ---------- 2. Chat history ----------
     let history = [];
     try {
       history = await getConversationHistory(senderId, botIgId);
@@ -162,38 +162,97 @@ async function processReply(botIgId, senderId, conversationId) {
       console.error("Error in getting conversation history:", error.message);
     }
 
-    // User profile + Follow Gate check
+    // ---------- 3. User profile fetch (gate ab yahan NAHI hai) ----------
     let userDetails;
     try {
       const instaProfile = await getInstagramProfile(credentials, senderId);
-
       userDetails = await User.findOneAndUpdate(
         { botIgId, instagramId: senderId },
-        {
-          $set: { ...instaProfile },
-          $setOnInsert: {
-            firstMessageAt: new Date(),
-            botIgId,
-            instagramId: senderId,
-          },
-        },
+        { $set: { ...instaProfile } },
         { upsert: true, new: true, runValidators: true }
       );
-
-      if (account.settings?.requireFollow && !instaProfile.isFollowing) {
-        const followMsg =
-          account.settings.followMessage ||
-          "Please follow first then we talk! 😊";
-        await sendInstagramMessage(credentials, senderId, followMsg);
-        return;
-      }
     } catch (error) {
       console.error("Profile error:", error.message);
+      // API fail -> DB ka cached follow status use karenge
+      userDetails = await User.findOne({ botIgId, instagramId: senderId }).lean();
     }
 
-    // Reply decide karo (Rules / AI / Hybrid)
+    // ---------- 4. FOLLOW GATE (cooldown ke saath) ----------
+    if (
+      account.settings?.requireFollow &&
+      userDetails &&
+      !userDetails.isFollowing
+    ) {
+      const cooldownHours = account.settings?.followReminderCooldownHours ?? 24;
+      const cooldownMs = cooldownHours * 60 * 60 * 1000;
+      const lastSent = userDetails.lastFollowReminderAt
+        ? new Date(userDetails.lastFollowReminderAt).getTime()
+        : 0;
+
+      // Cooldown chal raha hai -> chupchap exit, koi message nahi
+      if (Date.now() - lastSent < cooldownMs) return;
+
+      const followMsg =
+        account.settings.followMessage ||
+        "Please follow first then we talk! 😊";
+
+      // Reminder ko transcript mein save karo (pehle pending)
+      let reminderDoc;
+      try {
+        reminderDoc = await Message.create({
+          botIgId,
+          conversationId,
+          senderId: botIgId,
+          recipientId: senderId,
+          text: followMsg,
+          direction: "outgoing",
+          messageType: "text",
+          status: "pending",
+          replySource: "system",
+          timestamp: new Date(),
+        });
+      } catch (error) {
+        console.error("Follow reminder store error:", error.message);
+        return;
+      }
+
+      // Instagram par bhejo
+      let sentData;
+      try {
+        sentData = await sendInstagramMessage(credentials, senderId, followMsg);
+      } catch (error) {
+        await retryDatabaseUpdate(() =>
+          Message.findByIdAndUpdate(reminderDoc._id, {
+            $set: { status: error.deliveryStatus || "unknown" },
+          })
+        );
+        console.error("Follow reminder send error:", error.message);
+        return; // cooldown set NAHI hua -> agle message par dobara try
+      }
+
+      // Bhej diya -> status sent + messageId
+      await retryDatabaseUpdate(() =>
+        Message.findByIdAndUpdate(reminderDoc._id, {
+          $set: {
+            status: "sent",
+            ...(sentData.message_id ? { messageId: sentData.message_id } : {}),
+          },
+        })
+      );
+
+      // Cooldown timer start (sirf successful send par)
+      await User.updateOne(
+        { botIgId, instagramId: senderId },
+        { $set: { lastFollowReminderAt: new Date() } }
+      );
+
+      return; // gate band -> normal reply NAHI jayega
+    }
+
+    // ---------- 5. Reply decide (Rules / AI / Hybrid) ----------
     const botMode = account.settings?.botMode || "hybrid";
     const latestText = getLatestIncomingText(history);
+
     let reply = null;
     let replySource = "rule";
     let aiMeta = undefined;
@@ -205,11 +264,11 @@ async function processReply(botIgId, senderId, conversationId) {
     if (!reply) {
       if (botMode === "rules") {
         const noMatchReply = account.settings?.noMatchReply?.trim();
-        if (!noMatchReply) return; // Bina typing_on kiye chupchap exit
+        if (!noMatchReply) return; // chupchap exit
         reply = noMatchReply;
         replySource = "fallback";
       } else {
-        // Ab AI reply banne wala hai -> sirf ab typing_on bhejo!
+        // AI reply banne wala hai -> ab typing_on bhejo
         try {
           await sendTypingIndicator(credentials, senderId, "typing_on");
           typingOn = true;
@@ -244,6 +303,7 @@ async function processReply(botIgId, senderId, conversationId) {
           });
 
           reply = aiResult.text;
+
           if (aiResult.isFallback) {
             replySource = "fallback";
           } else {
@@ -265,7 +325,7 @@ async function processReply(botIgId, senderId, conversationId) {
       }
     }
 
-    // Outgoing message DB mein save karo
+    // ---------- 6. Outgoing message DB mein save (pending) ----------
     let outgoingMessage;
     try {
       outgoingMessage = await Message.create({
@@ -286,7 +346,7 @@ async function processReply(botIgId, senderId, conversationId) {
       return;
     }
 
-    // Instagram par reply bhejo
+    // ---------- 7. Instagram par reply bhejo ----------
     let upcomingData;
     try {
       upcomingData = await sendInstagramMessage(credentials, senderId, reply);
@@ -306,7 +366,7 @@ async function processReply(botIgId, senderId, conversationId) {
       return;
     }
 
-    // Status update karo
+    // ---------- 8. Status update ----------
     const updateData = { status: "sent" };
     if (upcomingData.message_id) updateData.messageId = upcomingData.message_id;
 
@@ -317,6 +377,7 @@ async function processReply(botIgId, senderId, conversationId) {
         { runValidators: true }
       )
     );
+
     if (!updated) {
       console.error(
         "Instagram message sent, but MongoDB update failed after retries."

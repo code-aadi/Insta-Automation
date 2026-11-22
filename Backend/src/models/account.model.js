@@ -128,11 +128,18 @@ const accountSchema = new mongoose.Schema(
         default: "Thanks for your message! Hum jaldi aapko reply karenge.",
       },
       replyDelaySeconds : {
-        type : Number,
-        default : 3,
-        min : 0,
-        max : 15
-      }
+     type : Number,
+     default : 3,
+     min : 0,
+     max : 15
+   },
+   
+   followReminderCooldownHours: {
+     type: Number,
+     default: 24,
+     min: 6,
+     max: 24,
+   }
     },
   },
   {

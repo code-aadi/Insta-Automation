@@ -42,10 +42,10 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    replySource: {
-      type: String,
-      enum: ["rule", "ai", "fallback"],
-    },
+     replySource: {
+    type: String,
+    enum: ["rule", "ai", "fallback", "system"],
+  },
     aiMeta: {
       model: String,
       promptTokens: Number,

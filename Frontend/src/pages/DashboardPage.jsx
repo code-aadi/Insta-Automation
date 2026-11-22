@@ -10,6 +10,7 @@ export default function DashboardPage() {
 
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [followReminderCooldownHours, setFollowReminderCooldownHours] = useState(24);
 const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
   const [isActive, setIsActive] = useState(true);
   const [botMode, setBotMode] = useState("hybrid");
@@ -25,6 +26,7 @@ const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
     setReplyDelaySeconds(account.settings.replyDelaySeconds ?? 3)
     setIsActive(account.settings.isActive ?? true);
     setBotMode(account.settings.botMode || "hybrid");
+    setFollowReminderCooldownHours(account.settings.followReminderCooldownHours ?? 24);
     setRequireFollow(account.settings.requireFollow ?? true);
     setFollowMessage(account.settings.followMessage || "");
     setNoMatchReply(account.settings.noMatchReply || "");
@@ -66,6 +68,7 @@ const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
         followMessage,
         noMatchReply,
         fallbackMessage,
+        followReminderCooldownHours,
         replyDelaySeconds
       });
     } finally {
@@ -221,21 +224,38 @@ const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
             </button>
           </div>
 
-          {requireFollow && (
-            <div className="field-group">
-              <label htmlFor="follow-msg" className="field-label">
-                Follow Reminder Message
-              </label>
-              <input
-                id="follow-msg"
-                type="text"
-                className="input-control"
-                value={followMessage}
-                onChange={(e) => setFollowMessage(e.target.value)}
-                placeholder="Please follow first then we talk! 😊"
-              />
-            </div>
-          )}
+         {requireFollow && (
+  <>
+    <div className="field-group">
+      <label htmlFor="follow-msg" className="field-label">
+        Follow Reminder Message
+      </label>
+      <input
+        id="follow-msg"
+        type="text"
+        className="input-control"
+        value={followMessage}
+        onChange={(e) => setFollowMessage(e.target.value)}
+        placeholder="Please follow first then we talk! 😊"
+      />
+    </div>
+    <div className="field-group">
+      <RangeSlider
+        label="Reminder repeat gap"
+        value={followReminderCooldownHours}
+        min={6}
+        max={24}
+        step={1}
+        unit="hrs"
+        onChange={setFollowReminderCooldownHours}
+      />
+      <span className="field-hint">
+       A reminder will be sent to non-followers, after which the bot will remain silent for {followReminderCooldownHours} hours. 
+       Once they follow, normal replies will resume immediately.
+      </span>
+    </div>
+  </>
+)}
 
           {botMode === "rules" ? (
             <div className="field-group">

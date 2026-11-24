@@ -548,3 +548,79 @@ export async function handleMediaMessage(
   const reply = MEDIA_REPLIES[type] || MEDIA_REPLIES.default;
   await sendSystemMessage(credentials, senderId, conversationId, reply);
 }
+
+
+/**
+ * Echo event = bot account se bheja gaya message.
+ * - Bot ke apne replies already DB mein hain -> dedupe se skip
+ * - Owner ke manual replies (Instagram app se) naye mid ke saath aate hain -> save
+ */
+export async function handleEchoMessage(
+  botIgId,
+  userId,
+  message,
+  messageId,
+  messageTimeStamp
+) {
+  const account = await Account.findOne({ botIgId }).select("_id").lean();
+  if (!account) return;
+
+  const text = message?.text || "";
+  const attachmentType = message?.attachments?.[0]?.type;
+
+  // Deleted/read jaise events mein kuch record karne layak nahi
+  if (!text && !attachmentType) return;
+
+  const conversationId = generateConversationId(userId, botIgId);
+  const messageDate = new Date(messageTimeStamp || Date.now());
+
+  // Safety net: agar echo ka mid aur send-API ka message_id alag format nikle,
+  // tab bhi apne bot ka reply do baar save na ho
+  if (text) {
+    const recent = await Message.findOne({
+      conversationId,
+      direction: "outgoing",
+      text,
+      timestamp: { $gte: new Date(messageDate.getTime() - 60 * 1000) },
+    })
+      .select("_id")
+      .lean();
+    if (recent) return;
+  }
+
+  try {
+    await Message.create({
+      botIgId,
+      conversationId,
+      senderId: botIgId,
+      recipientId: userId,
+      messageId,
+      text,
+      direction: "outgoing",
+      messageType: attachmentType || "text",
+      status: "sent",
+      replySource: "manual",
+      timestamp: messageDate,
+    });
+  } catch (error) {
+    if (error.code === 11000) return; // bot ka apna reply, pehle se recorded
+    console.error("Echo message store error:", error.message);
+    return;
+  }
+
+  // Lead ko inbox mein top par le aao
+  try {
+    await User.findOneAndUpdate(
+      { botIgId, instagramId: userId },
+      {
+        $set: { lastMessageAt: messageDate },
+        $setOnInsert: { firstMessageAt: messageDate },
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+  } catch (error) {
+    console.error("Echo lead update error:", error.message);
+  }
+
+  console.log("[Echo] Manual reply recorded");
+}

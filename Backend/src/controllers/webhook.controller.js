@@ -1,8 +1,9 @@
-import { config } from "../config/env.js";
 import {
   handleIncomingMessage,
   handleMediaMessage,
+  handleEchoMessage,
 } from "../services/message.service.js";
+
 
 export const verifyWebhook = async (req, res) => {
   const mode = req.query["hub.mode"];
@@ -19,22 +20,42 @@ export const verifyWebhook = async (req, res) => {
 export const receiveWebhook = async (req, res) => {
   res.status(200).send("EVENT_RECEIVED");
 
-   const body = req.body;
+  const body = req.body;
   if (!body || body.object !== "instagram") return;
 
   for (const entry of body.entry || []) {
     for (const event of entry.messaging || []) {
       if (!event.message) continue;
-      if (event.message.is_echo) continue;
 
+      const messageId = event.message.mid;
+      const timeStamp = event.timestamp || Date.now();
+      if (!messageId) continue;
+
+      // ---- ECHO: bot account se gaya message ----
+      if (event.message.is_echo) {
+        const echoBotId = event.sender?.id;      // sender = bot
+        const echoUserId = event.recipient?.id;  // recipient = user
+        if (!echoBotId || !echoUserId || echoBotId === echoUserId) continue;
+
+        handleEchoMessage(
+          echoBotId,
+          echoUserId,
+          event.message,
+          messageId,
+          timeStamp
+        ).catch((error) => {
+          console.error("Echo Message Error:", error);
+        });
+        continue;
+      }
+
+      // ---- INCOMING: user ka message ----
       const botIgId = event.recipient?.id || entry.id;
       const senderId = event.sender?.id;
-      const messageId = event.message.mid;
       const userMessage = event.message.text;
       const attachments = event.message.attachments;
-      const timeStamp = event.timestamp || Date.now();
 
-      if (!botIgId || !senderId || !messageId) continue;
+      if (!botIgId || !senderId) continue;
       if (senderId === botIgId) continue;
 
       if (userMessage) {
@@ -50,8 +71,7 @@ export const receiveWebhook = async (req, res) => {
         continue;
       }
 
-           if (attachments?.length) {
-             console.log("[Webhook] Attachment type:", attachments[0].type)
+      if (attachments?.length) {
         handleMediaMessage(
           botIgId,
           senderId,

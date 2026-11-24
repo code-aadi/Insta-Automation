@@ -42,9 +42,9 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-     replySource: {
+      replySource: {
     type: String,
-    enum: ["rule", "ai", "fallback", "system"],
+    enum: ["rule", "ai", "fallback", "system", "manual"],
   },
     aiMeta: {
       model: String,

@@ -329,25 +329,26 @@ export default function InboxPage() {
         <div className="chat-msg-bubble">
           <div>{msg.text || MEDIA_LABELS[msg.messageType] || `[${msg.messageType}]`}</div>
         </div>
-        <span className="chat-msg-meta">
-          {isIncoming ? (
-            `User · ${formatMessageTime(msg.timestamp)}`
-          ) : (
-            <>
-              Bot ({msg.status})
-              {msg.replySource === "rule" && " · ⚡ Keyword Rule"}
-              {msg.replySource === "fallback" && " · Fallback"}
-              {msg.replySource === "system" && " · ⚙️ System"}
-              {msg.replySource === "ai" && msg.aiMeta?.model && (
-                <>
-                  {` · 🤖 ${msg.aiMeta.model}`}
-                  {` · ${msg.aiMeta.totalTokens} tokens (in: ${msg.aiMeta.promptTokens}, out: ${msg.aiMeta.completionTokens})`}
-                </>
-              )}
-              {` · ${formatMessageTime(msg.timestamp)}`}
-            </>
-          )}
-        </span>
+       <span className="chat-msg-meta">
+  {isIncoming ? (
+    `User · ${formatMessageTime(msg.timestamp)}`
+  ) : (
+    <>
+      {msg.replySource === "manual" ? "You" : "Bot"} ({msg.status})
+      {msg.replySource === "rule" && " · ⚡ Keyword Rule"}
+      {msg.replySource === "fallback" && " · Fallback"}
+      {msg.replySource === "system" && " · ⚙️ System"}
+      {msg.replySource === "manual" && " · 👤 Manual Reply"}
+      {msg.replySource === "ai" && msg.aiMeta?.model && (
+        <>
+          {` · 🤖 ${msg.aiMeta.model}`}
+          {` · ${msg.aiMeta.totalTokens} tokens (in: ${msg.aiMeta.promptTokens}, out: ${msg.aiMeta.completionTokens})`}
+        </>
+      )}
+      {` · ${formatMessageTime(msg.timestamp)}`}
+    </>
+  )}
+</span>
       </div>
     </Fragment>
   );

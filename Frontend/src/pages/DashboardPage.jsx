@@ -20,7 +20,25 @@ const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
   const [fallbackMessage, setFallbackMessage] = useState("");
   const [refreshingToken, setRefreshingToken] = useState(false);
 
+
+const TOKEN_LIFETIME_MS = 60 * 24 * 60 * 60 * 1000;
+const MIN_TOKEN_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Backend jaisa hi math: token ki umar = 60 din - bacha hua time
+const tokenAgeMs = account?.tokenExpiresAt
+  ? TOKEN_LIFETIME_MS -
+    (new Date(account.tokenExpiresAt).getTime() - Date.now())
+  : null;
+
+const tokenTooNew = tokenAgeMs !== null && tokenAgeMs < MIN_TOKEN_AGE_MS;
+
+const refreshInHours = tokenTooNew
+  ? Math.ceil((MIN_TOKEN_AGE_MS - tokenAgeMs) / (60 * 60 * 1000))
+  : 0;
+
+
 const handleRefreshToken = async () => {
+  if(tokenTooNew) return
   setRefreshingToken(true);
   try {
     await refreshInstagramToken();
@@ -122,14 +140,25 @@ const handleRefreshToken = async () => {
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button
+        <button
   type="button"
   className="btn btn-secondary btn-sm"
   onClick={handleRefreshToken}
-  disabled={refreshingToken}
+  disabled={refreshingToken || tokenTooNew}
+  title={
+    tokenTooNew
+      ? `Instagram sirf 24 ghante purane token refresh karta hai. ${refreshInHours}h baad try karo.`
+      : "Instagram token ko naya 60-din ka token do"
+  }
 >
   <KeyRound size={14} />
-  <span>{refreshingToken ? "Refreshing..." : "Refresh Token"}</span>
+  <span>
+    {refreshingToken
+      ? "Refreshing..."
+      : tokenTooNew
+        ? `Refresh in ${refreshInHours}h`
+        : "Refresh Token"}
+  </span>
 </button>
           <button
             type="button"

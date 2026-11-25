@@ -4,6 +4,7 @@ import { Message } from "../models/message.model.js";
 import { encrypt } from "../helper/crypto.js";
 import { generateConversationId } from "../helper/conversationId.js";
 import { refreshAccountToken } from "../services/auth.service.js";
+import { fetchProviderModels, KNOWN_PROVIDERS } from "../services/ai.service.js";
 function sanitizeAccount(account) {
   if (!account) return null;
   const obj = typeof account.toObject === "function" ? account.toObject() : { ...account };
@@ -407,6 +408,31 @@ export const refreshToken = async (req, res) => {
     return res.json({ account: sanitizeAccount(account), tokenExpiresAt });
   } catch (error) {
     console.error("refreshToken Error:", error.message);
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+export const fetchModels = async (req, res) => {
+  try {
+    const provider = String(req.body.provider || "").trim().toLowerCase();
+    const apiKey = String(req.body.apiKey || "").trim();
+    const baseURL = String(req.body.baseURL || "").trim();
+
+    if (!provider || !apiKey) {
+      return res.status(400).json({ error: "provider and apiKey are required" });
+    }
+    if (provider !== "custom" && !KNOWN_PROVIDERS[provider]) {
+      return res.status(400).json({ error: `Unknown provider: ${provider}` });
+    }
+    if (provider === "custom" && !baseURL) {
+      return res.status(400).json({ error: "baseURL is required for custom provider" });
+    }
+
+    const providerModels = await fetchProviderModels({ provider, baseURL, apiKey });
+    return res.json({ providerModels });
+  } catch (error) {
+    console.error("fetchModels Error:", error.message);
+    // 400 hi rakho — 401 bheja toh frontend user ko logout kar dega
     return res.status(400).json({ error: error.message });
   }
 };

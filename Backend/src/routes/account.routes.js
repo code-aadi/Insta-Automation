@@ -14,6 +14,7 @@ import {
   getLeads,
   getConversationMessages,
   refreshToken,
+  fetchModels,
 } from "../controllers/account.controller.js";
 
 const router = express.Router();
@@ -41,5 +42,6 @@ router.get("/stats", getDashboardStats);
 router.get("/leads", getLeads);
 router.get("/leads/:instagramId/messages", getConversationMessages);
 router.post("/refresh-token", refreshToken);
+router.post("/ai-providers/fetch-models", fetchModels);
 
 export default router;

@@ -1,16 +1,10 @@
 import { useEffect, useState } from "react";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { useApp } from "../context/AppContext.jsx";
 
 export default function AiSettingsPage() {
-  const {
-    account,
-    updateBusinessInfo,
-    addAiProvider,
-    updateAiProvider,
-    deleteAiProvider,
-  } = useApp();
+  const { account, updateBusinessInfo, addAiProvider, updateAiProvider, deleteAiProvider, fetchProviderModels } = useApp();
 
   // Business Info form state
   const [name, setName] = useState("");
@@ -26,6 +20,12 @@ export default function AiSettingsPage() {
   const [modelsInput, setModelsInput] = useState("");
   const [addingProvider, setAddingProvider] = useState(false);
   const [providerError, setProviderError] = useState("");
+
+  const [availableModels, setAvailableModels] = useState([]);
+const [selectedModels, setSelectedModels] = useState([]);
+const [fetchingModels, setFetchingModels] = useState(false);
+const [modelsError, setModelsError] = useState("");
+const [showManualModels, setShowManualModels] = useState(false);
 
   useEffect(() => {
     if (!account?.businessInfo) return;
@@ -65,10 +65,8 @@ export default function AiSettingsPage() {
     setProviderError("");
     setAddingProvider(true);
     try {
-      const models = modelsInput
-        .split(",")
-        .map((m) => m.trim())
-        .filter(Boolean);
+    const manualModels = modelsInput.split(",").map((m) => m.trim()).filter(Boolean);
+const models = [...new Set([...selectedModels, ...manualModels])];
 
       await addAiProvider({
         provider,
@@ -80,12 +78,58 @@ export default function AiSettingsPage() {
       setApiKey("");
       setBaseURL("");
       setModelsInput("");
+      setAvailableModels([]);
+setSelectedModels([]);
     } catch (err) {
       setProviderError(err.message);
     } finally {
       setAddingProvider(false);
     }
   };
+
+
+  // Provider/key/URL badle toh purani list invalid
+useEffect(() => {
+  setAvailableModels([]);
+  setSelectedModels([]);
+  setModelsError("");
+}, [provider, apiKey, baseURL]);
+
+const handleFetchModels = async () => {
+  if (!apiKey.trim()) {
+    setModelsError("Pehle API key paste karo.");
+    return;
+  }
+  if (provider === "custom" && !baseURL.trim()) {
+    setModelsError("Custom provider ke liye Base URL zaroori hai.");
+    return;
+  }
+  setFetchingModels(true);
+  setModelsError("");
+  try {
+    const models = await fetchProviderModels({
+      provider,
+      baseURL: provider === "custom" ? baseURL.trim() : undefined,
+      apiKey: apiKey.trim(),
+    });
+    if (models.length === 0) {
+      setModelsError("Koi chat model nahi mila — manually type kar sakte ho.");
+    }
+    setAvailableModels(models);
+    setSelectedModels([]);
+  } catch (err) {
+    setModelsError(err.message);
+    setAvailableModels([]);
+  } finally {
+    setFetchingModels(false);
+  }
+};
+
+const toggleModel = (id) => {
+  setSelectedModels((prev) =>
+    prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
+  );
+};
 
   const providers = account?.aiProviders || [];
 
@@ -293,40 +337,108 @@ export default function AiSettingsPage() {
               </div>
             )}
 
-            <div className="field-group">
-              <label htmlFor="ai-apikey" className="field-label">
-                API Key (Encrypted before saving)
-              </label>
-              <input
-                id="ai-apikey"
-                type="password"
-                className="input-control"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Paste your API key..."
-              />
-            </div>
+                  <div className="field-group">
+          <label htmlFor="ai-apikey" className="field-label">
+            API Key (Encrypted before saving)
+          </label>
+          <input
+            id="ai-apikey"
+            type="password"
+            className="input-control"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Paste your API key..."
+          />
+        </div>
 
-            <div className="field-group">
-              <label htmlFor="ai-models" className="field-label">
-                Models (Optional, comma-separated)
-              </label>
-              <input
-                id="ai-models"
-                type="text"
-                className="input-control"
-                value={modelsInput}
-                onChange={(e) => setModelsInput(e.target.value)}
-                placeholder={
-                  provider === "groq"
-                    ? "Leave blank for defaults, or e.g. llama-3.3-70b-versatile"
-                    : provider === "gemini"
-                      ? "Leave blank for defaults, or e.g. gemini-2.5-flash"
-                      : "e.g. gpt-4o-mini"
-                }
-              />
-            </div>
+        {/* 🆕 Fetch Models + checkbox picker */}
+        <div className="field-group">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleFetchModels}
+            disabled={fetchingModels}
+            style={{ alignSelf: "flex-start" }}
+          >
+            <RefreshCw size={14} />
+            <span>{fetchingModels ? "Fetching models..." : "Fetch Available Models"}</span>
+          </button>
 
+          {modelsError && <span className="field-error">{modelsError}</span>}
+
+          {availableModels.length > 0 && (
+            <>
+              <span className="field-hint">
+                {availableModels.length} models mile · {selectedModels.length} selected ·
+                select order = fallback order
+              </span>
+              <div
+                style={{
+                  maxHeight: 220,
+                  overflowY: "auto",
+                  border: "1px solid var(--border-hairline)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "8px 12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  backgroundColor: "var(--bg-subtle)",
+                }}
+              >
+                {availableModels.map((m) => (
+                  <label
+                    key={m.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedModels.includes(m.id)}
+                      onChange={() => toggleModel(m.id)}
+                    />
+                    <span className="tabular-num">{m.id}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+               <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => setShowManualModels((p) => !p)}
+          style={{ alignSelf: "flex-start", minHeight: "auto", padding: "2px 0" }}
+        >
+          <span style={{ fontSize: 12 }}>
+            {showManualModels ? "− Hide manual models" : "+ Model manually add karo (advanced)"}
+          </span>
+        </button>
+
+        {showManualModels && (
+          <div className="field-group">
+            <label htmlFor="ai-models" className="field-label">
+              Extra Models (comma-separated)
+            </label>
+            <input
+              id="ai-models"
+              type="text"
+              className="input-control"
+              value={modelsInput}
+              onChange={(e) => setModelsInput(e.target.value)}
+              placeholder="e.g. llama-3.3-70b-versatile"
+            />
+            <span className="field-hint">
+              List mein model missing hai, ya provider /models support nahi karta? Yahan ID
+              type karo — checkbox wale models ke saath add ho jayenge.
+            </span>
+          </div>
+        )}
             {providerError && <span className="field-error">{providerError}</span>}
 
             <div>

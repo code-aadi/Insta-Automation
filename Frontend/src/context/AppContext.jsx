@@ -207,7 +207,14 @@ const refreshInstagramToken = async () => {
       throw error;
     }
   };
-
+// Provider ke available models fetch (account save nahi hota, sirf list)
+const fetchProviderModels = async (payload) => {
+  const data = await apiFetch("/api/account/ai-providers/fetch-models", {
+    method: "POST",
+    body: payload,
+  });
+  return data.providerModels || [];
+};
   // AI Providers (BYOK) CRUD
   const addAiProvider = async (payload) => {
     try {
@@ -289,6 +296,7 @@ const refreshInstagramToken = async () => {
         toasts,
         showToast,
         dismissToast,
+        fetchProviderModels,
         refreshInstagramToken
       }}
     >

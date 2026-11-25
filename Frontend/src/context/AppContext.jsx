@@ -260,6 +260,20 @@ const fetchProviderModels = async (payload) => {
     }
   };
 
+const reorderAiProviders = async (providerIds) => {
+  try {
+    const data = await apiFetch("/api/account/ai-providers/reorder", {
+      method: "PATCH",
+      body: { providerIds },
+    });
+    setAccount(data.account);
+    return data.account;
+  } catch (error) {
+    showToast(error.message, "error");
+    throw error;
+  }
+};
+
   // Leads & Messages
   const fetchLeads = useCallback((page = 1, limit = 30) => {
     return apiFetch(`/api/account/leads?page=${page}&limit=${limit}`);
@@ -297,6 +311,7 @@ const fetchProviderModels = async (payload) => {
         showToast,
         dismissToast,
         fetchProviderModels,
+        reorderAiProviders,
         refreshInstagramToken
       }}
     >

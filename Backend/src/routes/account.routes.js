@@ -15,6 +15,7 @@ import {
   getConversationMessages,
   refreshToken,
   fetchModels,
+  reorderAiProviders,
 } from "../controllers/account.controller.js";
 
 const router = express.Router();
@@ -26,7 +27,6 @@ router.use(requireAuth);
 router.get("/me", getMyAccount);
 router.patch("/business-info", updateBusinessInfo);
 router.patch("/settings", updateSettings);
-
 // Keyword rules CRUD
 router.post("/rules", addKeywordRule);
 router.patch("/rules/:ruleId", updateKeywordRule);
@@ -34,6 +34,7 @@ router.delete("/rules/:ruleId", deleteKeywordRule);
 
 // AI providers (BYOK) CRUD
 router.post("/ai-providers", addAiProvider);
+router.patch("/ai-providers/reorder", reorderAiProviders);
 router.patch("/ai-providers/:providerId", updateAiProvider);
 router.delete("/ai-providers/:providerId", deleteAiProvider);
 

@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { useApp } from "../context/AppContext.jsx";
 
 export default function AiSettingsPage() {
-  const { account, updateBusinessInfo, addAiProvider, updateAiProvider, deleteAiProvider, fetchProviderModels } = useApp();
-
+const { account, updateBusinessInfo, addAiProvider, updateAiProvider, deleteAiProvider, fetchProviderModels, reorderAiProviders } = useApp();
   // Business Info form state
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -124,7 +123,17 @@ const handleFetchModels = async () => {
     setFetchingModels(false);
   }
 };
-
+const handleMoveProvider = async (idx, direction) => {
+  const target = direction === "up" ? idx - 1 : idx + 1;
+  if (target < 0 || target >= providers.length) return;
+  const ids = providers.map((p) => p._id);
+  [ids[idx], ids[target]] = [ids[target], ids[idx]];
+  try {
+    await reorderAiProviders(ids);
+  } catch {
+    /* toast already dikha diya */
+  }
+};
 const toggleModel = (id) => {
   setSelectedModels((prev) =>
     prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
@@ -243,60 +252,74 @@ const toggleModel = (id) => {
               </p>
             ) : (
               providers.map((item, idx) => {
-                const active = item.isActive !== false;
-                return (
-                  <div key={item._id} className="icebreaker-card">
-                    <div className="icebreaker-top">
-                      <div>
-                        <div className="icebreaker-question">
-                          0{idx + 1}. {item.provider.toUpperCase()}
-                        </div>
-                        <div className="field-hint">
-                          {item.hasApiKey ? "API Key Encrypted ✓" : "Missing key"}
-                          {item.baseURL ? ` · ${item.baseURL}` : ""}
-                        </div>
-                      </div>
-
-                      <div className="icebreaker-actions" style={{ gap: 8 }}>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={active}
-                          className={`switch-btn ${active ? "is-on" : ""}`}
-                          onClick={() =>
-                            updateAiProvider(item._id, { isActive: !active })
-                          }
-                          aria-label={`Toggle ${item.provider}`}
-                        >
-                          <span className="switch-thumb" />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-icon"
-                          onClick={() => deleteAiProvider(item._id)}
-                          aria-label={`Delete ${item.provider}`}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="keyword-token-list">
-                      {item.models?.length > 0 ? (
-                        item.models.map((m) => (
-                          <span key={m} className="keyword-token">
-                            {m}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="field-hint">
-                          Using default {item.provider} fallback models
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+  const active = item.isActive !== false;
+  return (
+    <div key={item._id} className="icebreaker-card">
+      <div className="icebreaker-top">
+        <div>
+          <div className="icebreaker-question">
+            {String(idx + 1).padStart(2, "0")}. {item.provider.toUpperCase()}
+          </div>
+          <div className="field-hint">
+            {item.hasApiKey ? "API Key Encrypted ✓" : "Missing key"}
+            {item.baseURL ? ` · ${item.baseURL}` : ""}
+          </div>
+        </div>
+        <div className="icebreaker-actions" style={{ gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            disabled={idx === 0}
+            onClick={() => handleMoveProvider(idx, "up")}
+            aria-label="Move provider up"
+          >
+            <ArrowUp size={15} />
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            disabled={idx === providers.length - 1}
+            onClick={() => handleMoveProvider(idx, "down")}
+            aria-label="Move provider down"
+          >
+            <ArrowDown size={15} />
+          </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={active}
+            className={`switch-btn ${active ? "is-on" : ""}`}
+            onClick={() => updateAiProvider(item._id, { isActive: !active })}
+            aria-label={`Toggle ${item.provider}`}
+          >
+            <span className="switch-thumb" />
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={() => deleteAiProvider(item._id)}
+            aria-label={`Delete ${item.provider}`}
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+      <div className="keyword-token-list">
+        {item.models?.length > 0 ? (
+          item.models.map((m) => (
+            <span key={m} className="keyword-token">
+              {m}
+            </span>
+          ))
+        ) : (
+          <span className="field-hint">
+            Using default {item.provider} fallback models
+          </span>
+        )}
+      </div>
+    </div>
+  );
+})
             )}
           </div>
 

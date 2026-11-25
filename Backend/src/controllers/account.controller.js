@@ -436,3 +436,45 @@ export const fetchModels = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
+
+// 14. AI providers ka fallback order badlo
+export const reorderAiProviders = async (req, res) => {
+  try {
+    const { providerIds } = req.body;
+
+    if (!Array.isArray(providerIds) || providerIds.length === 0) {
+      return res.status(400).json({ error: "providerIds array is required" });
+    }
+
+    const account = await Account.findOne({ botIgId: req.botIgId })
+      .select("aiProviders")
+      .lean();
+
+    if (!account) return res.status(404).json({ error: "Account not found" });
+
+    const byId = new Map(account.aiProviders.map((p) => [String(p._id), p]));
+
+    // Safety: stale UI se koi provider delete na ho jaye
+    if (
+      providerIds.length !== account.aiProviders.length ||
+      providerIds.some((id) => !byId.has(String(id)))
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Provider list changed — refresh and try again" });
+    }
+
+    const reordered = providerIds.map((id) => byId.get(String(id)));
+
+    const updated = await Account.findOneAndUpdate(
+      { botIgId: req.botIgId },
+      { $set: { aiProviders: reordered } },
+      { new: true, runValidators: true }
+    ).select("+aiProviders.apiKey");
+
+    return res.json({ account: sanitizeAccount(updated) });
+  } catch (error) {
+    console.error("reorderAiProviders Error:", error.message);
+    return res.status(400).json({ error: error.message });
+  }
+};

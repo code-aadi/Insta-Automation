@@ -212,7 +212,11 @@ const toggleModel = (id) => {
               placeholder="Leave blank to use the built-in Hinglish/English DM template. Fill only if you want 100% custom prompt control."
             />
           </div>
-
+<span className="field-hint">
+ Business info and user name are still added automatically. The default rules
+  (truthful answers, short replies, no adult or political topics) are not — write
+  them in your prompt.
+</span>
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button type="submit" className="btn btn-primary" disabled={savingBiz}>
               <Save size={15} />

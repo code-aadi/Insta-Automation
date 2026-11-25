@@ -14,7 +14,7 @@ export default function DashboardPage() {
 const [replyDelaySeconds, setReplyDelaySeconds] = useState(3)
   const [isActive, setIsActive] = useState(true);
   const [botMode, setBotMode] = useState("hybrid");
-  const [requireFollow, setRequireFollow] = useState(true);
+  const [requireFollow, setRequireFollow] = useState(false);
   const [followMessage, setFollowMessage] = useState("");
   const [noMatchReply, setNoMatchReply] = useState("");
   const [fallbackMessage, setFallbackMessage] = useState("");
@@ -56,7 +56,7 @@ const handleRefreshToken = async () => {
     setIsActive(account.settings.isActive ?? true);
     setBotMode(account.settings.botMode || "hybrid");
     setFollowReminderCooldownHours(account.settings.followReminderCooldownHours ?? 24);
-    setRequireFollow(account.settings.requireFollow ?? true);
+    setRequireFollow(account.settings.requireFollow ?? false);
     setFollowMessage(account.settings.followMessage || "");
     setNoMatchReply(account.settings.noMatchReply || "");
     setFallbackMessage(account.settings.fallbackMessage || "");
@@ -271,7 +271,22 @@ const handleRefreshToken = async () => {
                 "Sends every DM straight to your configured AI provider pipeline."}
             </span>
           </div>
-  <RangeSlider label="DM reply delay" value={replyDelaySeconds} min={0} max={15} unit="sec" onChange={setReplyDelaySeconds}/>
+  <div className="field-group">
+  <RangeSlider
+    label="Message Batching Wait"
+    value={replyDelaySeconds}
+    min={0}
+    max={15}
+    unit="sec"
+    onChange={setReplyDelaySeconds}
+  />
+ <span className="field-hint">
+  {replyDelaySeconds === 0
+    ? "No wait. Each message may get its own reply. 2-3 sec is recommended."
+    : `Waits ${replyDelaySeconds} sec for more messages, then sends one combined reply.`}
+  {" "}AI replies take an extra 2-4 sec on top of this.
+</span>
+</div>
           <div className="toggle-setting-row">
             <div>
               <div className="field-label">Require Follow Before Replying</div>

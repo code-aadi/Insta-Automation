@@ -112,7 +112,7 @@ const accountSchema = new mongoose.Schema(
       },
       requireFollow: {
         type: Boolean,
-        default: true,
+        default: false,
       },
       followMessage: {
         type: String,

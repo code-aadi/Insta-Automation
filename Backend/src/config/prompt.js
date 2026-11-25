@@ -3,18 +3,24 @@ export const buildSystemPrompt = ({ businessInfo = {}, userDetails = {} }) => {
   const desc = businessInfo.description || "";
   const customInstructions = businessInfo.customInstructions?.trim();
   const customSystemPrompt = businessInfo.customSystemPrompt?.trim();
-
+const PLATFORM_RULES = `
+PLATFORM RULES (always apply):
+- Plain text only. Instagram markdown render nahi karta — **bold**, *italic*, #headings, bullet lists mat use karo. Sirf simple text aur emojis.
+`.trim();
   
   const userDisplayName = userDetails.name || userDetails.username || "dost";
   const userHandle = userDetails.username ? `@${userDetails.username}` : "";
 
  
-  if (customSystemPrompt) {
+   if (customSystemPrompt) {
     return `
 ${customSystemPrompt}
 
 User: ${userDisplayName} ${userHandle}
 ${desc ? `\n${botOwner.toUpperCase()} INFO:\n${desc}` : ""}
+${customInstructions ? `\nEXTRA CLIENT INSTRUCTIONS (Follow strictly):\n${customInstructions}` : ""}
+
+${PLATFORM_RULES}
 `.trim();
   }
 

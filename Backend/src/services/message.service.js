@@ -1,5 +1,6 @@
 import {
   sendInstagramMessage,
+  sendInstagramButtons,
   sendTypingIndicator,
   getInstagramProfile,
 } from "./instagram.service.js";
@@ -142,11 +143,8 @@ async function ensureLead(botIgId, senderId, messageDate, accessToken) {
   }
 }
 
-/**
- * Bot ka apna system message (rate-limit warning, media reply).
- * Instagram par bhejta hai AUR transcript mein save karta hai.
- */
-async function sendSystemMessage(credentials, senderId, conversationId, text) {
+
+async function sendSystemMessage(credentials, senderId, conversationId, text, buttons = []) {
   const { botIgId } = credentials;
 
   let doc;
@@ -161,6 +159,7 @@ async function sendSystemMessage(credentials, senderId, conversationId, text) {
       messageType: "text",
       status: "pending",
       replySource: "system",
+      ...(buttons.length ? { buttons } : {}),
       timestamp: new Date(),
     });
   } catch (error) {
@@ -170,7 +169,9 @@ async function sendSystemMessage(credentials, senderId, conversationId, text) {
 
   let sentData;
   try {
-    sentData = await sendInstagramMessage(credentials, senderId, text);
+    sentData = buttons.length
+      ? await sendInstagramButtons(credentials, senderId, text, buttons)
+      : await sendInstagramMessage(credentials, senderId, text);
   } catch (error) {
     await retryDatabaseUpdate(() =>
       Message.findByIdAndUpdate(doc._id, {
@@ -243,11 +244,25 @@ async function checkFollowGate({
   const followMsg =
     account.settings.followMessage || "Please follow first then we talk! 😊";
 
+    // Custom buttons nahi hain -> ek-tap Follow button auto bana do
+  const followButtons = account.settings?.followButtons?.length
+    ? account.settings.followButtons
+    : account.username
+      ? [
+          {
+            type: "web_url",
+            title: "Follow Us",
+            url: `https://www.instagram.com/${account.username}/`,
+          },
+        ]
+      : [];
+
   const sent = await sendSystemMessage(
     credentials,
     senderId,
     conversationId,
-    followMsg
+    followMsg,
+    followButtons
   );
 
   // Cooldown timer sirf successful send par start
@@ -307,15 +322,18 @@ async function processReply(botIgId, senderId, conversationId) {
     if (blocked) return;
 
     // ---------- 5. Reply decide (Rules / AI / Hybrid) ----------
+    
     const botMode = account.settings?.botMode || "hybrid";
     const latestText = getLatestIncomingText(history);
 
-    let reply = null;
+        let reply = null;
     let replySource = "rule";
     let aiMeta = undefined;
+    let matchedRule = null;
 
     if (botMode === "rules" || botMode === "hybrid") {
-      reply = matchKeywordRule(latestText, account.keywordRules);
+      matchedRule = matchKeywordRule(latestText, account.keywordRules);
+      reply = matchedRule?.reply || null;
     }
 
     if (!reply) {
@@ -382,7 +400,7 @@ async function processReply(botIgId, senderId, conversationId) {
       }
     }
 
-    // ---------- 6. Outgoing message DB mein save (pending) ----------
+       // ---------- 6. Outgoing message DB mein save (pending) ----------
     let outgoingMessage;
     try {
       outgoingMessage = await Message.create({
@@ -395,6 +413,7 @@ async function processReply(botIgId, senderId, conversationId) {
         status: "pending",
         messageType: "text",
         replySource,
+        ...(matchedRule?.buttons?.length ? { buttons: matchedRule.buttons } : {}),
         ...(aiMeta ? { aiMeta } : {}),
         timestamp: new Date(),
       });
@@ -403,10 +422,12 @@ async function processReply(botIgId, senderId, conversationId) {
       return;
     }
 
-    // ---------- 7. Instagram par reply bhejo ----------
+      // ---------- 7. Instagram par reply bhejo ----------
     let upcomingData;
     try {
-      upcomingData = await sendInstagramMessage(credentials, senderId, reply);
+      upcomingData = matchedRule?.buttons?.length
+        ? await sendInstagramButtons(credentials, senderId, reply, matchedRule.buttons)
+        : await sendInstagramMessage(credentials, senderId, reply);
     } catch (error) {
       const finalStatus = error.deliveryStatus || "unknown";
       const updated = await retryDatabaseUpdate(() =>

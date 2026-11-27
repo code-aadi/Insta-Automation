@@ -326,8 +326,15 @@ export default function InboxPage() {
           isIncoming ? "chat-msg--incoming" : "chat-msg--outgoing"
         }`}
       >
-        <div className="chat-msg-bubble">
+               <div className="chat-msg-bubble">
           <div>{msg.text || MEDIA_LABELS[msg.messageType] || `[${msg.messageType}]`}</div>
+          {msg.buttons?.length > 0 && (
+            <div className="chat-btn-row">
+              {msg.buttons.map((b, i) => (
+                <span key={i} className="chat-btn-chip">{b.title}</span>
+              ))}
+            </div>
+          )}
         </div>
        <span className="chat-msg-meta">
   {isIncoming ? (

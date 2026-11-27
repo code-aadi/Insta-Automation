@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-
+import { messageButtonSchema } from "./button.schema.js";
 const keywordRuleSchema = new mongoose.Schema({
   keywords: {
     type: [String], // e.g., ["price", "cost", "fees"]
@@ -18,6 +18,7 @@ const keywordRuleSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+    buttons: { type: [messageButtonSchema], default: [] },
 });
 
 const aiProviderSchema = new mongoose.Schema({
@@ -133,7 +134,8 @@ const accountSchema = new mongoose.Schema(
      min : 0,
      max : 15
    },
-   
+      followButtons: { type: [messageButtonSchema], default: [] },
+      
    followReminderCooldownHours: {
      type: Number,
      default: 24,

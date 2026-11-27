@@ -4,10 +4,11 @@ import { ArrowRight, KeyRound, RefreshCw, Save } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import RangeSlider from "../components/RangeSlider.jsx";
+import ButtonBuilder from "../components/ButtonBuilder.jsx";
 
 export default function DashboardPage() {
   const { account, stats, refreshStats, updateSettings, refreshInstagramToken } = useApp();
-
+const [followButtons, setFollowButtons] = useState([]);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [followReminderCooldownHours, setFollowReminderCooldownHours] = useState(24);
@@ -58,6 +59,7 @@ const handleRefreshToken = async () => {
     setFollowReminderCooldownHours(account.settings.followReminderCooldownHours ?? 24);
     setRequireFollow(account.settings.requireFollow ?? false);
     setFollowMessage(account.settings.followMessage || "");
+    setFollowButtons(account.settings.followButtons || []);
     setNoMatchReply(account.settings.noMatchReply || "");
     setFallbackMessage(account.settings.fallbackMessage || "");
   }, [account]);
@@ -98,7 +100,8 @@ const handleRefreshToken = async () => {
         noMatchReply,
         fallbackMessage,
         followReminderCooldownHours,
-        replyDelaySeconds
+        replyDelaySeconds,
+        followButtons
       });
     } finally {
       setSaving(false);
@@ -320,6 +323,14 @@ const handleRefreshToken = async () => {
         placeholder="Please follow first then we talk! 😊"
       />
     </div>
+              <ButtonBuilder
+            buttons={followButtons}
+            onChange={setFollowButtons}
+            label="Follow Reminder Buttons"
+          />
+          <span className="field-hint">
+            Leave empty to auto-add a one-tap "Follow" button linking to your profile.
+          </span>
     <div className="field-group">
       <RangeSlider
         label="Reminder repeat gap"

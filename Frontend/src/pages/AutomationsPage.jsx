@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Edit3, Plus, Search, Trash2, X } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { useApp } from "../context/AppContext.jsx";
-
+import ButtonBuilder from "../components/ButtonBuilder.jsx";
 export default function AutomationsPage() {
   const { account, addKeywordRule, updateKeywordRule, deleteKeywordRule } = useApp();
   const rules = account?.keywordRules || [];
@@ -12,6 +12,7 @@ export default function AutomationsPage() {
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
+  const [buttons, setButtons] = useState([]);
   const [editingRule, setEditingRule] = useState(null);
   const [keywords, setKeywords] = useState([]);
   const [keywordDraft, setKeywordDraft] = useState("");
@@ -51,6 +52,7 @@ export default function AutomationsPage() {
     setIsActive(true);
     setFormError("");
     setModalOpen(true);
+    setButtons([])
   };
 
   const openEditModal = (rule) => {
@@ -62,6 +64,7 @@ export default function AutomationsPage() {
     setIsActive(rule.isActive !== false);
     setFormError("");
     setModalOpen(true);
+    setButtons(rule.buttons || [])
   };
 
   const handleAddChip = () => {
@@ -113,6 +116,7 @@ export default function AutomationsPage() {
         matchType,
         reply: reply.trim(),
         isActive,
+        buttons,
       };
       if (editingRule) {
         await updateKeywordRule(editingRule._id, payload);
@@ -361,7 +365,7 @@ export default function AutomationsPage() {
                   placeholder="Write the exact DM reply to send..."
                 />
               </div>
-
+          <ButtonBuilder buttons={buttons} onChange={setButtons} label="Reply Buttons" />
               <div className="toggle-setting-row">
                 <div>
                   <div className="field-label">Rule Active</div>

@@ -25,16 +25,34 @@ export const receiveWebhook = async (req, res) => {
 
   for (const entry of body.entry || []) {
     for (const event of entry.messaging || []) {
+      const timeStamp = event.timestamp || Date.now();
+
+      // ---- BUTTON TAP (postback) ----
+      if (event.postback) {
+        const botIgId = event.recipient?.id || entry.id;
+        const senderId = event.sender?.id;
+        const text = event.postback.payload || event.postback.title;
+        if (!botIgId || !senderId || !text || senderId === botIgId) continue;
+
+        handleIncomingMessage(
+          botIgId,
+          senderId,
+          text,
+          `pb_${senderId}_${timeStamp}`,
+          timeStamp
+        ).catch((error) => console.error("Postback Error:", error));
+        continue;
+      }
+
       if (!event.message) continue;
 
       const messageId = event.message.mid;
-      const timeStamp = event.timestamp || Date.now();
       if (!messageId) continue;
 
-      // ---- ECHO: bot account se gaya message ----
+      // ---- ECHO ----
       if (event.message.is_echo) {
-        const echoBotId = event.sender?.id;      // sender = bot
-        const echoUserId = event.recipient?.id;  // recipient = user
+        const echoBotId = event.sender?.id;
+        const echoUserId = event.recipient?.id;
         if (!echoBotId || !echoUserId || echoBotId === echoUserId) continue;
 
         handleEchoMessage(
@@ -43,20 +61,18 @@ export const receiveWebhook = async (req, res) => {
           event.message,
           messageId,
           timeStamp
-        ).catch((error) => {
-          console.error("Echo Message Error:", error);
-        });
+        ).catch((error) => console.error("Echo Message Error:", error));
         continue;
       }
 
-      // ---- INCOMING: user ka message ----
+      // ---- INCOMING ----
       const botIgId = event.recipient?.id || entry.id;
       const senderId = event.sender?.id;
-      const userMessage = event.message.text;
+      const quickPayload = event.message.quick_reply?.payload;
+      const userMessage = quickPayload || event.message.text;
       const attachments = event.message.attachments;
 
-      if (!botIgId || !senderId) continue;
-      if (senderId === botIgId) continue;
+      if (!botIgId || !senderId || senderId === botIgId) continue;
 
       if (userMessage) {
         handleIncomingMessage(
@@ -65,9 +81,7 @@ export const receiveWebhook = async (req, res) => {
           userMessage,
           messageId,
           timeStamp
-        ).catch((error) => {
-          console.error("Incoming Message Error:", error);
-        });
+        ).catch((error) => console.error("Incoming Message Error:", error));
         continue;
       }
 
@@ -78,9 +92,7 @@ export const receiveWebhook = async (req, res) => {
           attachments[0].type,
           messageId,
           timeStamp
-        ).catch((error) => {
-          console.error("Media Message Error:", error);
-        });
+        ).catch((error) => console.error("Media Message Error:", error));
       }
     }
   }

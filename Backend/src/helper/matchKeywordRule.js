@@ -36,7 +36,7 @@ export function matchKeywordRule(incomingText, rules = []) {
 
     for (const keyword of rule.keywords) {
       if (isKeywordMatch(normalizedText, keyword, rule.matchType)) {
-        return rule.reply;
+        return rule;
       }
     }
   }

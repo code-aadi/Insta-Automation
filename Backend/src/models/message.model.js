@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-
+import { messageButtonSchema } from "./button.schema.js";
 const messageSchema = new mongoose.Schema(
   {
     botIgId: {
@@ -52,6 +52,7 @@ const messageSchema = new mongoose.Schema(
       completionTokens: Number,
       totalTokens: Number,
     },
+      buttons: { type: [messageButtonSchema], default: [] },
   },
   {
     timestamps: true,

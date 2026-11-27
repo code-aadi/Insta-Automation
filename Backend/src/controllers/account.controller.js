@@ -5,6 +5,7 @@ import { encrypt } from "../helper/crypto.js";
 import { generateConversationId } from "../helper/conversationId.js";
 import { refreshAccountToken } from "../services/auth.service.js";
 import { fetchProviderModels, KNOWN_PROVIDERS } from "../services/ai.service.js";
+import { cleanButtons } from "../models/button.schema.js";
 function sanitizeAccount(account) {
   if (!account) return null;
   const obj = typeof account.toObject === "function" ? account.toObject() : { ...account };
@@ -83,7 +84,8 @@ export const updateSettings = async (req, res) => {
       noMatchReply,
       fallbackMessage,
       replyDelaySeconds,
-      followReminderCooldownHours
+      followReminderCooldownHours,
+      followButtons
     } = req.body;
 
     const updates = {};
@@ -122,7 +124,7 @@ if (followReminderCooldownHours !== undefined) {
     if (followMessage !== undefined) updates["settings.followMessage"] = followMessage;
     if (noMatchReply !== undefined) updates["settings.noMatchReply"] = noMatchReply;
     if (fallbackMessage !== undefined) updates["settings.fallbackMessage"] = fallbackMessage;
-
+    if (followButtons !== undefined) updates["settings.followButtons"] = cleanButtons(followButtons);
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }
@@ -143,7 +145,7 @@ if (followReminderCooldownHours !== undefined) {
 // 4. Keyword Rule Add karo
 export const addKeywordRule = async (req, res) => {
   try {
-    const { keywords, matchType = "contains", reply, isActive = true } = req.body;
+    const {buttons, keywords, matchType = "contains", reply, isActive = true } = req.body;
 
     if (!Array.isArray(keywords) || keywords.length === 0 || !reply?.trim()) {
       return res.status(400).json({ error: "keywords array and reply are required" });
@@ -158,7 +160,7 @@ export const addKeywordRule = async (req, res) => {
       { botIgId: req.botIgId },
       {
         $push: {
-          keywordRules: { keywords: cleanKeywords, matchType, reply, isActive },
+                 keywordRules: { keywords: cleanKeywords, matchType, reply, isActive, buttons: cleanButtons(buttons) },
         },
       },
       { new: true, runValidators: true }
@@ -175,7 +177,7 @@ export const addKeywordRule = async (req, res) => {
 export const updateKeywordRule = async (req, res) => {
   try {
     const { ruleId } = req.params;
-    const { keywords, matchType, reply, isActive } = req.body;
+    const {buttons, keywords, matchType, reply, isActive } = req.body;
 
     const updates = {};
     if (keywords !== undefined) {
@@ -187,6 +189,7 @@ export const updateKeywordRule = async (req, res) => {
       }
       updates["keywordRules.$.keywords"] = cleanKeywords;
     }
+        if (buttons !== undefined) updates["keywordRules.$.buttons"] = cleanButtons(buttons);
     if (matchType !== undefined) updates["keywordRules.$.matchType"] = matchType;
     if (reply !== undefined) updates["keywordRules.$.reply"] = reply;
     if (isActive !== undefined) updates["keywordRules.$.isActive"] = Boolean(isActive);

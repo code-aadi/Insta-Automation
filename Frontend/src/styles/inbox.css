@@ -402,6 +402,24 @@
   color: var(--text-muted);
 }
 
+.chat-btn-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+}
+.chat-btn-chip {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
 @media (max-width: 960px) {
   .inbox-layout {
     grid-template-columns: 1fr;

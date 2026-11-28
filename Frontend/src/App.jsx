@@ -7,31 +7,20 @@ import AutomationsPage from "./pages/AutomationsPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import InboxPage from "./pages/InboxPage.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
+import CommentsPage from "./pages/CommentsPage.jsx";
+import CommentMediaPage from "./pages/CommentMediaPage.jsx";
+import CommentActivityPage from "./pages/CommentActivityPage.jsx";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, authLoading } = useApp();
-
   if (authLoading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 14,
-          color: "var(--text-muted)",
-        }}
-      >
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "var(--text-muted)" }}>
         Loading workspace...
       </div>
     );
   }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (!isAuthenticated) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -43,40 +32,13 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LandingPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
-
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/automations"
-            element={
-              <ProtectedRoute>
-                <AutomationsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/ai-studio"
-            element={
-              <ProtectedRoute>
-                <AiSettingsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/inbox"
-            element={
-              <ProtectedRoute>
-                <InboxPage />
-              </ProtectedRoute>
-            }
-          />
-
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
+          <Route path="/ai-studio" element={<ProtectedRoute><AiSettingsPage /></ProtectedRoute>} />
+          <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
+          <Route path="/comments" element={<ProtectedRoute><CommentsPage /></ProtectedRoute>} />
+          <Route path="/comments/media" element={<ProtectedRoute><CommentMediaPage /></ProtectedRoute>} />
+          <Route path="/comments/activity" element={<ProtectedRoute><CommentActivityPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <ToastContainer />

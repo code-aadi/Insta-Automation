@@ -88,43 +88,38 @@ export async function getInstagramProfile({ accessToken }, userId) {
   };
 }
 
-export async function sendInstagramButtons(credentials, recipientId, text, buttons = []) {
+export function buildButtonPayload(text, buttons = []) {
   const clean = buttons
     .filter((b) => b?.title?.trim())
     .slice(0, 3)
     .map((b) =>
       b.type === "postback"
-        ? {
-            type: "postback",
-            title: b.title.trim().slice(0, 20),
-            payload: (b.payload || b.title).trim().slice(0, 1000),
-          }
-        : {
-            type: "web_url",
-            url: b.url,
-            title: b.title.trim().slice(0, 20),
-          }
+        ? { type: "postback", title: b.title.trim().slice(0, 20), payload: (b.payload || b.title).trim().slice(0, 1000) }
+        : { type: "web_url", url: b.url, title: b.title.trim().slice(0, 20) }
     )
     .filter((b) => b.type === "postback" || /^https?:\/\//i.test(b.url || ""));
 
-  // Koi valid button nahi bacha -> plain text bhejo, message kabhi rukega nahi
-  if (clean.length === 0) {
-    return sendInstagramMessage(credentials, recipientId, text);
-  }
+  if (clean.length === 0) return { text: String(text).slice(0, 1000) };
 
+  return {
+    attachment: {
+      type: "template",
+      payload: { template_type: "button", text: String(text).slice(0, 640), buttons: clean },
+    },
+  };
+}
+
+export async function sendInstagramButtons(credentials, recipientId, text, buttons = []) {
   return instagramRequest(credentials, {
     recipient: { id: recipientId },
-    message: {
-      attachment: {
-        type: "template",
-        payload: {
-          template_type: "button",
-          text: String(text).slice(0, 640),
-          buttons: clean,
-        },
-      },
-    },
+    message: buildButtonPayload(text, buttons),
   });
 }
 
-
+// Comment ka one-shot private DM (ek comment par sirf ek baar, 7 din ke andar)
+export async function sendPrivateReply(credentials, commentId, text, buttons = []) {
+  return instagramRequest(credentials, {
+    recipient: { comment_id: String(commentId) },
+    message: buildButtonPayload(text, buttons),
+  });
+}

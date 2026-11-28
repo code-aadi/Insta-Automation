@@ -370,6 +370,8 @@
 .preview-dm-card-title {
   font-size: 13px;
   font-weight: 700;
+  overflow-wrap: break-word;
+    white-space: normal;
 }
 
 .preview-dm-card-btn {

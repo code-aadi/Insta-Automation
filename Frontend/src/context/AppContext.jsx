@@ -62,7 +62,7 @@ export function AppProvider({ children }) {
         return;
       }
       try {
-        await Promise.all([refreshAccount(), refreshStats()]);
+        await Promise.all([refreshAccount(), refreshStats(), refreshCommentRules(), refreshCommentMedia()]);
       } catch {
         clearToken();
         setAccount(null);
@@ -260,6 +260,86 @@ const fetchProviderModels = async (payload) => {
     }
   };
 
+  // ---------- Comment Automation ----------
+  const [commentRules, setCommentRules] = useState([]);
+  const [commentMedia, setCommentMedia] = useState([]);
+  const [commentActivity, setCommentActivity] = useState({ events: [], total: 0, byStage: {} });
+
+  const refreshCommentRules = useCallback(async () => {
+    const data = await apiFetch("/api/comments/rules");
+    setCommentRules(data.rules || []);
+    return data.rules || [];
+  }, []);
+
+  const refreshCommentMedia = useCallback(async () => {
+    const data = await apiFetch("/api/comments/media");
+    setCommentMedia(data.media || []);
+    return data.media || [];
+  }, []);
+
+  const refreshCommentActivity = useCallback(async (stage = "all") => {
+    const data = await apiFetch(`/api/comments/activity?stage=${stage}&limit=150`);
+    setCommentActivity(data);
+    return data;
+  }, []);
+
+  const syncCommentMedia = async () => {
+    const data = await apiFetch("/api/comments/media/sync", { method: "POST" });
+    setCommentMedia(data.media || []);
+    showToast(`${data.synced} posts & reels synced from Instagram`, "success");
+    return data.media || [];
+  };
+
+  const createCommentRule = async (payload) => {
+    const data = await apiFetch("/api/comments/rules", { method: "POST", body: payload });
+    setCommentRules((prev) => [...prev, data.rule]);
+    return data.rule;
+  };
+
+  const updateCommentRule = async (ruleId, payload) => {
+    // Optimistic
+    setCommentRules((prev) => prev.map((r) => (r._id === ruleId ? { ...r, ...payload } : r)));
+    try {
+      const data = await apiFetch(`/api/comments/rules/${ruleId}`, { method: "PATCH", body: payload });
+      setCommentRules((prev) => prev.map((r) => (r._id === ruleId ? data.rule : r)));
+      return data.rule;
+    } catch (error) {
+      await refreshCommentRules();
+      showToast(error.message, "error");
+      throw error;
+    }
+  };
+
+  const deleteCommentRule = async (ruleId) => {
+    const removed = commentRules.find((r) => r._id === ruleId);
+    setCommentRules((prev) => prev.filter((r) => r._id !== ruleId));
+    try {
+      await apiFetch(`/api/comments/rules/${ruleId}`, { method: "DELETE" });
+      return removed;
+    } catch (error) {
+      await refreshCommentRules();
+      showToast(error.message, "error");
+      throw error;
+    }
+  };
+
+  const restoreCommentRule = async (rule) => {
+    const data = await apiFetch("/api/comments/rules/restore", { method: "POST", body: rule });
+    setCommentRules((prev) => [...prev, data.rule].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+    showToast("Rule restored", "success");
+    return data.rule;
+  };
+
+  const reorderCommentRules = async (ruleIds) => {
+    const data = await apiFetch("/api/comments/rules/reorder", { method: "PATCH", body: { ruleIds } });
+    setCommentRules(data.rules || []);
+  };
+
+  const bulkCommentRules = async (ruleIds, action) => {
+    const data = await apiFetch("/api/comments/rules/bulk", { method: "POST", body: { ruleIds, action } });
+    setCommentRules(data.rules || []);
+  };
+
 const reorderAiProviders = async (providerIds) => {
   try {
     const data = await apiFetch("/api/account/ai-providers/reorder", {
@@ -312,7 +392,20 @@ const reorderAiProviders = async (providerIds) => {
         dismissToast,
         fetchProviderModels,
         reorderAiProviders,
-        refreshInstagramToken
+        refreshInstagramToken,
+        commentRules,
+        commentMedia,
+        commentActivity,
+        refreshCommentRules,
+        refreshCommentMedia,
+        refreshCommentActivity,
+        syncCommentMedia,
+        createCommentRule,
+        updateCommentRule,
+        deleteCommentRule,
+        restoreCommentRule,
+        reorderCommentRules,
+        bulkCommentRules,
       }}
     >
       {children}

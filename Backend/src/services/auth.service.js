@@ -115,8 +115,7 @@ async function subscribeAccountWebhook(botIgId, accessToken) {
   const url = new URL(
     `https://graph.instagram.com/${config.apiVersion}/${botIgId}/subscribed_apps`
   );
-  url.searchParams.set("subscribed_fields", "messages");
-
+  url.searchParams.set("subscribed_fields", "messages,comments");
   const response = await fetch(url, {
     method: "POST",
     headers: {

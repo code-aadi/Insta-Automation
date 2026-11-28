@@ -8,6 +8,7 @@ import './styles/landing.css';
 import './styles/dashboard.css';
 import './styles/automations.css';
 import './styles/inbox.css';
+import './styles/comments.css';
 
 /**
  * Application entry point — mounts the React tree into #root.
